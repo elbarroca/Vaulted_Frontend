@@ -1,14 +1,11 @@
-import { BrowserRouter } from "react-router-dom"
-import { ThemeProvider } from "./components/theme-provider"
-import { Routes } from "./routes"
-import { ReferralPage } from "@/pages/dashboard/referral"
+import { ThemeProvider } from "@/components/theme-provider"
+import { RouterProvider } from "react-router-dom"
+import { router } from "./routes"
 
-export function App() {
+export default function App() {
   return (
-    <BrowserRouter>
-      <ThemeProvider defaultTheme="system" storageKey="vaulted-ui-theme">
-        <Routes />
-      </ThemeProvider>
-    </BrowserRouter>
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <RouterProvider router={router} />
+    </ThemeProvider>
   )
 }

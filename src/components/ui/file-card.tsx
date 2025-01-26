@@ -1,11 +1,12 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Icons } from "@/components/ui/icons"
+import { FileText, Table, Image, File, Share2, Trash, Star, StarIcon, Info, Download, MoreVertical } from "lucide-react"
 import { FilePreview } from "@/components/ui/file-preview"
 import { motion } from "framer-motion"
 import { useTheme } from "@/components/theme-provider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 interface FileCardProps {
   file: {
@@ -19,11 +20,17 @@ interface FileCardProps {
     createdAt: string
     shared?: boolean
     isDeleted?: boolean
+    location?: string
+    lastAccessed?: string
+    lastModified?: string
+    owner?: string
+    permissions?: string[]
   }
   onStar?: (id: string) => void
   onDelete?: (id: string) => void
   onShare?: (id: string) => void
   onDownload?: (id: string) => void
+  onPreview?: (id: string) => void
 }
 
 export function FileCard({ 
@@ -31,11 +38,13 @@ export function FileCard({
   onStar,
   onDelete,
   onShare,
-  onDownload
+  onDownload,
+  onPreview
 }: FileCardProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
   const [isHovered, setIsHovered] = React.useState(false)
 
   const getFileIcon = () => {
@@ -43,34 +52,37 @@ export function FileCard({
     
     switch(extension) {
       case 'pdf':
-        return <Icons.fileText className="h-5 w-5" />
+        return <FileText className="h-5 w-5" />
       case 'doc':
       case 'docx':
-        return <Icons.fileText className="h-5 w-5" />
+        return <FileText className="h-5 w-5" />
       case 'xls':
       case 'xlsx':
-        return <Icons.table className="h-5 w-5" />
+        return <Table className="h-5 w-5" />
       case 'jpg':
       case 'jpeg':
       case 'png':
       case 'gif':
-        return <Icons.image className="h-5 w-5" />
+        return <Image className="h-5 w-5" />
       case 'mp4':
       case 'mov':
-        return <Icons.fileText className="h-5 w-5" /> // Changed from video to fileText
+        return <FileText className="h-5 w-5" />
       case 'md':
-        return <Icons.file className="h-5 w-5" /> // Changed from fileCode to file
+        return <File className="h-5 w-5" />
       default:
-        return <Icons.file className="h-5 w-5" />
+        return <File className="h-5 w-5" />
     }
   }
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A'
     const date = new Date(dateString)
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
-      day: '2-digit'
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
     }).format(date)
   }
 
@@ -106,7 +118,7 @@ export function FileCard({
                 ? "bg-blue-500/20 text-blue-400"
                 : "bg-blue-50 text-blue-600"
             )}>
-              <Icons.share2 className="h-3 w-3" />
+              <Share2 className="h-3 w-3" />
               Shared
             </div>
           )}
@@ -117,7 +129,7 @@ export function FileCard({
                 ? "bg-red-500/20 text-red-400"
                 : "bg-red-50 text-red-600"
             )}>
-              <Icons.trash className="h-3 w-3" />
+              <Trash className="h-3 w-3" />
               Deleted
             </div>
           )}
@@ -126,7 +138,7 @@ export function FileCard({
         {/* Preview Area */}
         <div 
           className="relative aspect-[4/3] cursor-pointer group"
-          onClick={() => setIsPreviewOpen(true)}
+          onClick={() => onPreview?.(file.id)}
         >
           {file.previewUrl ? (
             <img 
@@ -143,39 +155,56 @@ export function FileCard({
             </div>
           )}
           
-          {/* Hover Overlay */}
-          <motion.div 
-            className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-            initial={false}
-            animate={{ opacity: isHovered ? 1 : 0 }}
-          >
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsPreviewOpen(true)
-                }}
-              >
-                <Icons.fileText className="h-4 w-4" />
-              </Button>
-              {onDownload && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDownload(file.id)
-                  }}
-                >
-                  <Icons.download className="h-4 w-4" />
-                </Button>
+          {/* Always Visible Actions */}
+          <div className="absolute top-3 left-3 flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-8 w-8 bg-background/50 backdrop-blur-sm hover:bg-background/80",
+                file.starred && "text-yellow-500"
               )}
-            </div>
-          </motion.div>
+              onClick={(e) => {
+                e.stopPropagation()
+                onStar?.(file.id)
+              }}
+            >
+              {file.starred ? <StarIcon className="h-4 w-4" /> : <Star className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 bg-background/50 backdrop-blur-sm hover:bg-background/80"
+              onClick={(e) => {
+                e.stopPropagation()
+                onShare?.(file.id)
+              }}
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 bg-background/50 backdrop-blur-sm hover:bg-background/80"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDownload?.(file.id)
+              }}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 bg-background/50 backdrop-blur-sm hover:bg-background/80 text-destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete?.(file.id)
+              }}
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* File Info */}
@@ -191,87 +220,54 @@ export function FileCard({
                 <span>{formatDate(file.createdAt)}</span>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {onStar && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn(
-                    "hover:text-amber-500",
-                    file.starred && "text-amber-500"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onStar(file.id)
-                  }}
+                  className="hover:text-primary"
                 >
-                  {file.starred ? <Icons.starFilled className="h-4 w-4" /> : <Icons.star className="h-4 w-4" />}
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
-              )}
-              {onShare && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "hover:text-blue-500",
-                    file.shared && "text-blue-500"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onShare(file.id)
-                  }}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => onPreview?.(file.id)}
                 >
-                  <Icons.share2 className="h-4 w-4" />
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:text-primary"
-                  >
-                    <Icons.moreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    className="gap-2"
-                    onClick={() => setIsPreviewOpen(true)}
-                  >
-                    <Icons.fileText className="h-4 w-4" />
-                    Preview
-                  </DropdownMenuItem>
-                  {onDownload && (
-                    <DropdownMenuItem
-                      className="gap-2"
-                      onClick={() => onDownload(file.id)}
-                    >
-                      <Icons.download className="h-4 w-4" />
-                      Download
-                    </DropdownMenuItem>
-                  )}
-                  {onShare && (
-                    <DropdownMenuItem
-                      className="gap-2"
-                      onClick={() => onShare(file.id)}
-                    >
-                      <Icons.share2 className="h-4 w-4" />
-                      Share
-                    </DropdownMenuItem>
-                  )}
-                  {onDelete && (
-                    <DropdownMenuItem
-                      className="gap-2 text-red-500 focus:text-red-500"
-                      onClick={() => onDelete(file.id)}
-                    >
-                      <Icons.trash className="h-4 w-4" />
-                      {file.isDeleted ? 'Delete Forever' : 'Move to Trash'}
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                  <FileText className="h-4 w-4" />
+                  Preview
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => onDownload?.(file.id)}
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => onShare?.(file.id)}
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => onStar?.(file.id)}
+                >
+                  {file.starred ? <StarIcon className="h-4 w-4" /> : <Star className="h-4 w-4" />}
+                  {file.starred ? 'Unstar' : 'Star'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => onDelete?.(file.id)}
+                >
+                  <Trash className="h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </motion.div>
@@ -287,6 +283,108 @@ export function FileCard({
           onDownload={onDownload}
         />
       )}
+
+      {/* Details Modal */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "p-3 rounded-xl",
+                isDark ? "bg-muted/30" : "bg-muted/20"
+              )}>
+                {getFileIcon()}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold">{file.name}</h2>
+                <p className="text-sm text-muted-foreground">{formatSize(file.size)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Created</h4>
+                  <p className="text-sm">{formatDate(file.createdAt)}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Last Modified</h4>
+                  <p className="text-sm">{formatDate(file.lastModified || file.createdAt)}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Last Accessed</h4>
+                  <p className="text-sm">{formatDate(file.lastAccessed || file.createdAt)}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Type</h4>
+                  <p className="text-sm capitalize">{file.type}</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Location</h4>
+                <p className="text-sm">{file.location || 'Root Directory'}</p>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Owner</h4>
+                <p className="text-sm">{file.owner || 'You'}</p>
+              </div>
+
+              {file.permissions && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Permissions</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {file.permissions.map((permission, index) => (
+                      <div
+                        key={index}
+                        className={cn(
+                          "px-2 py-1 rounded-md text-xs font-medium",
+                          isDark ? "bg-muted/30" : "bg-muted/20"
+                        )}
+                      >
+                        {permission}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              {onShare && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setIsDetailsOpen(false)
+                    onShare(file.id)
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </Button>
+              )}
+              {onDownload && (
+                <Button
+                  className="gap-2"
+                  onClick={() => {
+                    setIsDetailsOpen(false)
+                    onDownload(file.id)
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

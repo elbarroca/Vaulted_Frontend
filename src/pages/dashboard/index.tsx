@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input"
 import { Squares } from "@/components/Landing/squares-background"
 import React from "react"
 import { FileCard } from "@/components/ui/file-card"
+import { Label } from "@/components/ui/label"
+import { CreateFolderModal } from "@/components/ui/create-folder-modal"
+import { ShareFileModal } from "@/components/ui/share-file-modal"
+import { DeleteFileModal } from "@/components/ui/delete-file-modal"
+import { EnhancedShareModal } from "@/components/ui/enhanced-share-modal"
 
 type BrowserFile = globalThis.File
 type CustomFile = {
@@ -26,6 +31,13 @@ type CustomFile = {
   starred?: boolean
   createdAt: string
   folderId?: string | null
+  isDeleted?: boolean
+  shared?: boolean
+  lastModified: string
+  lastAccessed: string
+  location: string
+  owner: string
+  permissions: string[]
 }
 
 interface Folder {
@@ -118,36 +130,6 @@ const FolderCard = ({ folder, onClick }: { folder: Folder; onClick: () => void }
   </motion.div>
 )
 
-const CreateFolderDialog = ({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) => {
-  const [folderName, setFolderName] = useState("")
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Create New Folder</h2>
-          <Input
-            placeholder="Folder name"
-            value={folderName}
-            onChange={(e) => setFolderName(e.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={() => {
-              onCreate(folderName)
-              onClose()
-            }}>Create</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-interface UploadAreaProps {
-  onUpload: (files: CustomFile[]) => void
-}
-
 const UploadArea = ({ onUpload }: UploadAreaProps) => {
   const [isDragging, setIsDragging] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -159,7 +141,13 @@ const UploadArea = ({ onUpload }: UploadAreaProps) => {
       type: file.type,
       size: file.size,
       createdAt: new Date().toISOString(),
-      folderId: null
+      folderId: null,
+      lastModified: new Date().toISOString(),
+      lastAccessed: new Date().toISOString(),
+      location: "",
+      owner: "",
+      permissions: [],
+      previewUrl: undefined
     }))
     onUpload(newFiles)
   }
@@ -283,6 +271,9 @@ export function DashboardPage() {
   
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null)
   const [showUploadModal, setShowUploadModal] = React.useState(false)
+  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid")
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [sortBy, setSortBy] = React.useState<"date" | "name" | "size" | "type">("date")
   const [folders, setFolders] = React.useState<Folder[]>([
     { id: "1", name: "Documents", icon: "fileText", files: [], created: "2024-01-25" },
     { id: "2", name: "Images", icon: "image", files: [], created: "2024-01-25" },
@@ -294,18 +285,85 @@ export function DashboardPage() {
     {
       id: "1",
       name: "Project Proposal.pdf",
-      type: "application/pdf",
+      type: "pdf",
       size: 2.5 * 1024 * 1024,
       createdAt: "2024-01-25",
+      lastModified: "2024-01-26",
+      lastAccessed: "2024-01-27",
+      location: "/Documents/Projects",
+      owner: "John Doe",
+      permissions: ["read", "write", "share"],
+      previewUrl: "https://picsum.photos/seed/1/800/600",
       folderId: "1"
     },
     {
       id: "2",
       name: "Meeting Notes.docx",
-      type: "application/docx",
+      type: "document",
       size: 1.2 * 1024 * 1024,
       createdAt: "2024-01-24",
+      lastModified: "2024-01-24",
+      lastAccessed: "2024-01-27",
+      location: "/Documents/Meetings",
+      owner: "John Doe",
+      permissions: ["read", "write"],
       starred: true,
+      folderId: "1"
+    },
+    {
+      id: "3",
+      name: "Product Launch.jpg",
+      type: "image",
+      size: 3.7 * 1024 * 1024,
+      createdAt: "2024-01-23",
+      lastModified: "2024-01-23",
+      lastAccessed: "2024-01-27",
+      location: "/Images/Marketing",
+      owner: "John Doe",
+      permissions: ["read", "write", "share"],
+      previewUrl: "https://picsum.photos/seed/2/800/600",
+      shared: true,
+      folderId: "2"
+    },
+    {
+      id: "4",
+      name: "Financial Report.xlsx",
+      type: "spreadsheet",
+      size: 1.8 * 1024 * 1024,
+      createdAt: "2024-01-22",
+      lastModified: "2024-01-26",
+      lastAccessed: "2024-01-27",
+      location: "/Documents/Finance",
+      owner: "John Doe",
+      permissions: ["read"],
+      starred: true,
+      folderId: "1"
+    },
+    {
+      id: "5",
+      name: "Team Photo.png",
+      type: "image",
+      size: 4.2 * 1024 * 1024,
+      createdAt: "2024-01-21",
+      lastModified: "2024-01-21",
+      lastAccessed: "2024-01-27",
+      location: "/Images/Team",
+      owner: "John Doe",
+      permissions: ["read", "write"],
+      previewUrl: "https://picsum.photos/seed/3/800/600",
+      folderId: "2"
+    },
+    {
+      id: "6",
+      name: "Project Timeline.md",
+      type: "markdown",
+      size: 0.5 * 1024 * 1024,
+      createdAt: "2024-01-20",
+      lastModified: "2024-01-25",
+      lastAccessed: "2024-01-27",
+      location: "/Documents/Projects",
+      owner: "John Doe",
+      permissions: ["read", "write", "share"],
       folderId: "1"
     }
   ])
@@ -331,7 +389,42 @@ export function DashboardPage() {
     return files.filter(f => f.folderId === currentFolderId)
   }, [files, currentFolderId, location.pathname])
 
+  // Enhanced search and sort functionality
+  const filteredAndSortedFiles = React.useMemo(() => {
+    let result = filteredFiles
+
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(file => 
+        file.name.toLowerCase().includes(query) || 
+        file.type.toLowerCase().includes(query)
+      )
+    }
+
+    // Apply sorting
+    return [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "date":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        case "name":
+          return a.name.localeCompare(b.name)
+        case "size":
+          return b.size - a.size
+        case "type":
+          return a.type.localeCompare(b.type)
+        default:
+          return 0
+      }
+    })
+  }, [filteredFiles, searchQuery, sortBy])
+
   const [isUploading, setIsUploading] = React.useState(false)
+  const [showCreateFolderModal, setShowCreateFolderModal] = React.useState(false)
+  const [showShareModal, setShowShareModal] = React.useState(false)
+  const [selectedFile, setSelectedFile] = React.useState<CustomFile | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false)
+  const [fileToDelete, setFileToDelete] = React.useState<CustomFile | null>(null)
 
   const handleFileUpload = async (uploadedFiles: FileList | BrowserFile[]) => {
     setIsUploading(true)
@@ -348,7 +441,12 @@ export function DashboardPage() {
             createdAt: new Date().toISOString(),
             folderId: currentFolderId,
             previewUrl,
-            url: URL.createObjectURL(file)
+            url: URL.createObjectURL(file),
+            lastModified: new Date().toISOString(),
+            lastAccessed: new Date().toISOString(),
+            location: "",
+            owner: "",
+            permissions: []
           }
         })
       )
@@ -361,11 +459,7 @@ export function DashboardPage() {
           if (folder.id === currentFolderId) {
             return {
               ...folder,
-              files: [...(folder.files || []), ...newFiles.map(file => ({
-                id: file.id,
-                name: file.name,
-                type: file.type
-              }))]
+              files: [...(folder.files || []), ...newFiles]
             }
           }
           return folder
@@ -385,46 +479,17 @@ export function DashboardPage() {
     }
   }
 
-  const handleCreateFolder = () => {
-    const dialog = document.createElement('dialog')
-    dialog.innerHTML = `
-      <div class="p-4 rounded-lg shadow-lg">
-        <h2 class="text-lg font-semibold mb-4">Create New Folder</h2>
-        <input type="text" placeholder="Folder name" class="w-full p-2 border rounded mb-4">
-        <div class="flex justify-end gap-2">
-          <button class="px-4 py-2 rounded bg-gray-200">Cancel</button>
-          <button class="px-4 py-2 rounded bg-blue-500 text-white">Create</button>
-        </div>
-      </div>
-    `
-    document.body.appendChild(dialog)
-    dialog.showModal()
-
-    const [cancelBtn, createBtn] = dialog.querySelectorAll('button')
-    const input = dialog.querySelector('input')
-
-    cancelBtn.onclick = () => {
-      dialog.close()
-      document.body.removeChild(dialog)
+  const handleCreateFolder = (name: string) => {
+    const newFolder: Folder = {
+      id: `folder-${Date.now()}`,
+      name: name,
+      icon: "folder",
+      parentId: currentFolderId,
+      files: [],
+      created: new Date().toISOString()
     }
-
-    createBtn.onclick = () => {
-      const folderName = input?.value
-      if (folderName) {
-        const newFolder: Folder = {
-          id: `folder-${Date.now()}`,
-          name: folderName,
-          icon: "folder",
-          parentId: currentFolderId,
-          files: [],
-          created: new Date().toISOString()
-        }
-        setFolders(prev => [...prev, newFolder])
-        setCurrentFolderId(newFolder.id)
-      }
-      dialog.close()
-      document.body.removeChild(dialog)
-    }
+    setFolders(prev => [...prev, newFolder])
+    setCurrentFolderId(newFolder.id)
   }
 
   const handleStarFile = (fileId: string) => {
@@ -436,106 +501,43 @@ export function DashboardPage() {
   const handleDeleteFile = (fileId: string) => {
     const file = files.find(f => f.id === fileId)
     if (!file) return
+    setFileToDelete(file)
+    setShowDeleteModal(true)
+  }
 
-    const dialog = document.createElement('dialog')
-    dialog.innerHTML = `
-      <div class="p-4 rounded-lg shadow-lg">
-        <h2 class="text-lg font-semibold mb-4">Delete File</h2>
-        <p class="mb-4">Are you sure you want to delete "${file.name}"?</p>
-        <div class="flex justify-end gap-2">
-          <button class="px-4 py-2 rounded bg-gray-200">Cancel</button>
-          <button class="px-4 py-2 rounded bg-red-500 text-white">Delete</button>
-        </div>
-      </div>
-    `
-    document.body.appendChild(dialog)
-    dialog.showModal()
-
-    const [cancelBtn, deleteBtn] = dialog.querySelectorAll('button')
-
-    cancelBtn.onclick = () => {
-      dialog.close()
-      document.body.removeChild(dialog)
-    }
-
-    deleteBtn.onclick = () => {
-      setFiles(prev => prev.filter(f => f.id !== fileId))
+  const handleConfirmDelete = (fileId: string) => {
+    setFiles(prev => prev.filter(f => f.id !== fileId))
       
-      // Remove file from folder
-      if (file.folderId) {
-        setFolders(prev => prev.map(folder => {
-          if (folder.id === file.folderId) {
-            return {
-              ...folder,
-              files: (folder.files || []).filter(f => f.id !== fileId)
-            }
+    // Remove file from folder
+    const file = files.find(f => f.id === fileId)
+    if (file?.folderId) {
+      setFolders(prev => prev.map(folder => {
+        if (folder.id === file.folderId) {
+          return {
+            ...folder,
+            files: (folder.files || []).filter(f => f.id !== fileId)
           }
-          return folder
-        }))
-      }
-      
-      dialog.close()
-      document.body.removeChild(dialog)
+        }
+        return folder
+      }))
     }
   }
 
   const handleShareFile = (fileId: string) => {
     const file = files.find(f => f.id === fileId)
     if (!file) return
+    setSelectedFile(file)
+    setShowShareModal(true)
+  }
 
-    const dialog = document.createElement('dialog')
-    dialog.innerHTML = `
-      <div class="p-4 rounded-lg shadow-lg">
-        <h2 class="text-lg font-semibold mb-4">Share "${file.name}"</h2>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-1">Share Link</label>
-            <div class="flex gap-2">
-              <input type="text" value="${window.location.origin}/share/${fileId}" readonly class="w-full p-2 border rounded bg-gray-50">
-              <button class="px-4 py-2 rounded bg-blue-500 text-white copy-btn">Copy</button>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Share with email</label>
-            <input type="email" placeholder="Enter email address" class="w-full p-2 border rounded">
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 mt-4">
-          <button class="px-4 py-2 rounded bg-gray-200 close-btn">Close</button>
-          <button class="px-4 py-2 rounded bg-blue-500 text-white share-btn">Share</button>
-        </div>
-      </div>
-    `
-    document.body.appendChild(dialog)
-    dialog.showModal()
-
-    const closeBtn = dialog.querySelector('.close-btn') as HTMLButtonElement
-    const shareBtn = dialog.querySelector('.share-btn') as HTMLButtonElement
-    const copyBtn = dialog.querySelector('.copy-btn') as HTMLButtonElement
-    const linkInput = dialog.querySelector('input[type="text"]') as HTMLInputElement
-    const emailInput = dialog.querySelector('input[type="email"]') as HTMLInputElement
-
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(linkInput.value)
-      copyBtn.textContent = 'Copied!'
-      setTimeout(() => {
-        copyBtn.textContent = 'Copy'
-      }, 2000)
-    })
-
-    closeBtn.addEventListener('click', () => {
-      dialog.close()
-      document.body.removeChild(dialog)
-    })
-
-    shareBtn.addEventListener('click', () => {
-      const email = emailInput.value
-      if (email) {
-        console.log(`Sharing ${file.name} with ${email}`)
-      }
-      dialog.close()
-      document.body.removeChild(dialog)
-    })
+  const handleEmailShare = (email: string) => {
+    if (selectedFile) {
+      console.log(`Sharing ${selectedFile.name} with ${email}`)
+      // Implement email sharing logic here
+      setFiles(prev => prev.map(file => 
+        file.id === selectedFile.id ? { ...file, shared: true } : file
+      ))
+    }
   }
 
   const handleDownloadFile = (fileId: string) => {
@@ -554,206 +556,300 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background/50 relative overflow-hidden">
-      {/* Main Background with Squares */}
-      <div className="fixed inset-0 -z-10">
-        {/* Primary Background */}
+    <div className="relative min-h-screen w-full">
+      {/* Main wrapper with background */}
+      <div className="fixed inset-0 w-full h-full">
+        {/* Simplified light mode background */}
         <div className={cn(
           "absolute inset-0",
           isDark 
-            ? "bg-gradient-to-br from-background via-background/95 to-violet-950/20"
-            : "bg-gradient-to-br from-background via-background/95 to-violet-100/30"
+            ? "bg-gradient-to-br from-background/90 via-background/85 to-background/75" 
+            : "bg-[#fafafa]"
         )} />
-        
-        {/* Animated Squares Background - Global */}
-        <Squares
-          className={cn(
-            isDark ? "opacity-[0.08]" : "opacity-[0.05]",
-            "transition-opacity duration-1000"
-          )}
-          direction="diagonal"
-          speed={0.2}
-          squareSize={120}
-          hoverFillColor={isDark ? "rgba(124, 58, 237, 0.4)" : "rgba(124, 58, 237, 0.15)"}
-          borderColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}
-        />
+
+        {/* Light mode subtle pattern */}
+        {!isDark && (
+          <div className="absolute inset-0 opacity-[0.4] pointer-events-none" 
+               style={{ 
+                 backgroundImage: 'radial-gradient(#e2e8f0 0.5px, transparent 0.5px), radial-gradient(#e2e8f0 0.5px, #fafafa 0.5px)',
+                 backgroundSize: '20px 20px',
+                 backgroundPosition: '0 0, 10px 10px'
+               }} 
+          />
+        )}
+
+        {/* Keep dark mode squares, remove from light mode */}
+        {isDark && (
+          <>
+            <Squares
+              className="absolute inset-0 opacity-[0.25] transition-all duration-500"
+              direction="up"
+              speed={0.2}
+              squareSize={80}
+              hoverFillColor="rgba(30, 41, 59, 0.9)"
+              borderColor="rgba(148, 163, 184, 0.3)"
+            />
+            <Squares
+              className="absolute inset-0 opacity-[0.2] transition-all duration-500"
+              direction="right"
+              speed={0.15}
+              squareSize={140}
+              hoverFillColor="rgba(30, 41, 59, 0.8)"
+              borderColor="rgba(148, 163, 184, 0.25)"
+            />
+            <Squares
+              className="absolute inset-0 opacity-[0.15] transition-all duration-500"
+              direction="diagonal"
+              speed={0.3}
+              squareSize={40}
+              hoverFillColor="rgba(30, 41, 59, 0.7)"
+              borderColor="rgba(148, 163, 184, 0.2)"
+            />
+          </>
+        )}
       </div>
 
-      <Sidebar
-        currentFolderId={currentFolderId}
-        folders={folders}
-        onFolderSelect={setCurrentFolderId}
-      />
-      
-      <main className="flex-1 overflow-auto relative">
-        {/* Content Background with Additional Squares */}
-        <div className="fixed inset-0 -z-10">
-          <Squares
-            className={cn(
-              isDark ? "opacity-[0.06]" : "opacity-[0.04]",
-              "transition-opacity duration-1000"
-            )}
-            direction="up"
-            speed={0.3}
-            squareSize={80}
-            hoverFillColor={isDark ? "rgba(139, 92, 246, 0.4)" : "rgba(139, 92, 246, 0.15)"}
-            borderColor={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"}
-          />
-        </div>
+      {/* Main content */}
+      <div className="relative flex h-screen overflow-hidden">
+        <Sidebar
+          currentFolderId={currentFolderId}
+          folders={folders}
+          onFolderSelect={setCurrentFolderId}
+        />
+        
+        <main className="flex-1 overflow-auto">
+          <div className={cn(
+            "container mx-auto px-8 py-6",
+            isDark 
+              ? "bg-transparent"
+              : "bg-white/60 shadow-sm",
+            "transition-all duration-500"
+          )}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <motion.h1 
+                  className={cn(
+                    "text-4xl font-bold mb-2",
+                    isDark 
+                      ? "bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400"
+                      : "text-gray-900"
+                  )}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {currentFolder?.name || "My Files"}
+                </motion.h1>
+                <motion.div 
+                  className="flex items-center gap-3 text-gray-500"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <span className="text-lg">{filteredAndSortedFiles.length} file{filteredAndSortedFiles.length !== 1 && "s"}</span>
+                  <span className="text-gray-300">•</span>
+                  <span className="text-lg">{formatTotalSize(filteredAndSortedFiles.reduce((acc, file) => acc + file.size, 0))}</span>
+                </motion.div>
+              </div>
 
-        <div className={cn(
-          "container mx-auto px-8 py-6 relative z-10",
-          "min-h-full"
-        )}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <motion.h1 
-                className={cn(
-                  "text-4xl font-bold mb-2",
-                  isDark 
-                    ? "bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400"
-                    : "bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"
-                )}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {currentFolder?.name || "My Files"}
-              </motion.h1>
-              <motion.div 
-                className="flex items-center gap-3 text-muted-foreground"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.1 }}
-              >
-                <span className="text-lg">{filteredFiles.length} file{filteredFiles.length !== 1 && "s"}</span>
-                <span className="text-border/60">•</span>
-                <span className="text-lg">{formatTotalSize(filteredFiles.reduce((acc, file) => acc + file.size, 0))}</span>
-              </motion.div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button className={cn(
-                      "flex items-center gap-2 px-6 h-11 rounded-full shadow-lg",
-                      isDark 
-                        ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:shadow-blue-500/10"
-                        : "bg-blue-50 hover:bg-blue-100 text-blue-600 hover:shadow-blue-500/5",
-                      "transition-all duration-300 hover:scale-105"
-                    )}>
-                      <Icons.plus className="w-5 h-5" />
-                      <span className="font-medium">Create New</span>
-                      <Icons.chevronDown className="w-4 h-4 ml-1 opacity-70" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent 
-                    align="end" 
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center gap-3"
+                >
+                  {/* Upload Files Button */}
+                  <Button
+                    onClick={() => setShowUploadModal(true)}
                     className={cn(
-                      "w-56 p-2",
-                      isDark ? "bg-background/80" : "bg-white/80",
-                      "backdrop-blur-sm border-border/20"
+                      "flex items-center gap-2 px-4 h-10 rounded-lg",
+                      isDark 
+                        ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-600",
+                      "transition-all duration-300"
                     )}
                   >
-                    <DropdownMenuItem 
-                      onClick={() => setShowUploadModal(true)}
-                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                    >
-                      <Icons.upload className="w-4 h-4" />
-                      Upload Files
+                    <Icons.upload className="w-4 h-4" />
+                    <span className="font-medium">Upload</span>
+                  </Button>
+
+                  {/* Create Folder Button */}
+                  <Button
+                    onClick={() => setShowCreateFolderModal(true)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 h-10 rounded-lg",
+                      isDark 
+                        ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-400"
+                        : "bg-purple-50 hover:bg-purple-100 text-purple-600",
+                      "transition-all duration-300"
+                    )}
+                  >
+                    <Icons.folder className="w-4 h-4" />
+                    <span className="font-medium">New Folder</span>
+                  </Button>
+
+                  {/* Create Document Button */}
+                  <Button
+                    onClick={() => navigate("/document/new")}
+                    className={cn(
+                      "flex items-center gap-2 px-4 h-10 rounded-lg",
+                      isDark 
+                        ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400"
+                        : "bg-emerald-50 hover:bg-emerald-100 text-emerald-600",
+                      "transition-all duration-300"
+                    )}
+                  >
+                    <Icons.fileText className="w-4 h-4" />
+                    <span className="font-medium">New Doc</span>
+                  </Button>
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="flex items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-4 flex-1">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search files..."
+                  className="max-w-md"
+                  prefix={<Icons.search className="h-4 w-4 text-muted-foreground" />}
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Icons.filter className="h-4 w-4" />
+                      Sort by: {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy("date")}>
+                      <Icons.clock className="mr-2 h-4 w-4" /> Date
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={handleCreateFolder}
-                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                    >
-                      <Icons.folder className="w-4 h-4" />
-                      New Folder
+                    <DropdownMenuItem onClick={() => setSortBy("name")}>
+                      <Icons.text className="mr-2 h-4 w-4" /> Name
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => navigate("/document/new")}
-                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                    >
-                      <Icons.fileText className="w-4 h-4" />
-                      New Document
+                    <DropdownMenuItem onClick={() => setSortBy("size")}>
+                      <Icons.arrowUpDown className="mr-2 h-4 w-4" /> Size
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("type")}>
+                      <Icons.file className="mr-2 h-4 w-4" /> Type
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </motion.div>
-            </div>
-          </div>
+              </div>
 
-          {/* Search and Filters */}
-          <div className="flex items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <Input
-                placeholder="Search files..."
-                className="max-w-md"
-                prefix={<Icons.search className="h-4 w-4 text-muted-foreground" />}
-              />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Icons.filter className="h-4 w-4" />
-                    Sort by
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Icons.clock className="mr-2 h-4 w-4" /> Date
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Icons.text className="mr-2 h-4 w-4" /> Name
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Icons.arrowUpDown className="mr-2 h-4 w-4" /> Size
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Icons.file className="mr-2 h-4 w-4" /> Type
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex items-center gap-2">
+                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "grid" | "list")} className="w-[200px]">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="grid" className="gap-2">
+                      <Icons.layoutGrid className="h-4 w-4" />
+                      Grid
+                    </TabsTrigger>
+                    <TabsTrigger value="list" className="gap-2">
+                      <Icons.layoutList className="h-4 w-4" />
+                      List
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Tabs defaultValue="grid" className="w-[200px]">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="grid" className="gap-2">
-                    <Icons.layoutGrid className="h-4 w-4" />
-                    Grid
-                  </TabsTrigger>
-                  <TabsTrigger value="list" className="gap-2">
-                    <Icons.layoutList className="h-4 w-4" />
-                    List
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            {/* Files Grid/List View */}
+            <div className="relative">
+              {viewMode === "grid" ? (
+                <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredAndSortedFiles.map((file) => (
+                    <FileCard
+                      key={file.id}
+                      file={file}
+                      onStar={() => handleStarFile(file.id)}
+                      onDelete={() => handleDeleteFile(file.id)}
+                      onShare={() => handleShareFile(file.id)}
+                      onDownload={() => handleDownloadFile(file.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="relative space-y-2">
+                  {filteredAndSortedFiles.map((file) => (
+                    <motion.div
+                      key={file.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-lg",
+                        isDark 
+                          ? "hover:bg-primary/5 bg-transparent"
+                          : "hover:bg-gray-50 bg-white",
+                        "border border-gray-100 shadow-sm transition-colors"
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "p-2 rounded",
+                          isDark ? "bg-primary/10" : "bg-primary/5"
+                        )}>
+                          {file.type === "image" && <Icons.image className="h-5 w-5 text-blue-500" />}
+                          {file.type === "document" && <Icons.fileText className="h-5 w-5 text-emerald-500" />}
+                          {file.type === "pdf" && <Icons.file className="h-5 w-5 text-red-500" />}
+                          {file.type === "spreadsheet" && <Icons.table className="h-5 w-5 text-green-500" />}
+                          {file.type === "video" && <Icons.play className="h-5 w-5 text-purple-500" />}
+                          {file.type === "audio" && <Icons.volume2 className="h-5 w-5 text-yellow-500" />}
+                        </div>
+                        <div>
+                          <h3 className="font-medium">{file.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {formatTotalSize(file.size)} • {new Date(file.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleStarFile(file.id)}
+                          className={cn(
+                            file.starred && "text-yellow-500"
+                          )}
+                        >
+                          <Icons.star className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleShareFile(file.id)}
+                        >
+                          <Icons.share2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDownloadFile(file.id)}
+                        >
+                          <Icons.download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Icons.trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Files Grid */}
-          <div className="relative">
-            <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredFiles.map((file) => (
-                <FileCard
-                  key={file.id}
-                  file={file}
-                  onStar={() => handleStarFile(file.id)}
-                  onDelete={() => handleDeleteFile(file.id)}
-                  onShare={() => handleShareFile(file.id)}
-                  onDownload={() => handleDownloadFile(file.id)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </main>
+        </main>
+      </div>
 
       {/* Upload Modal */}
       <FileUploadModal
@@ -762,6 +858,37 @@ export function DashboardPage() {
         onUpload={handleFileUpload}
         isUploading={isUploading}
       />
+
+      {/* Modals */}
+      <CreateFolderModal
+        open={showCreateFolderModal}
+        onClose={() => setShowCreateFolderModal(false)}
+        onCreate={handleCreateFolder}
+      />
+
+      {selectedFile && (
+        <EnhancedShareModal
+          open={showShareModal}
+          onClose={() => {
+            setShowShareModal(false)
+            setSelectedFile(null)
+          }}
+          file={selectedFile}
+          onShare={handleEmailShare}
+        />
+      )}
+
+      {fileToDelete && (
+        <DeleteFileModal
+          open={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false)
+            setFileToDelete(null)
+          }}
+          file={fileToDelete}
+          onDelete={handleConfirmDelete}
+        />
+      )}
     </div>
   )
 } 

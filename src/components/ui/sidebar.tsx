@@ -10,6 +10,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { motion, AnimatePresence } from "framer-motion"
 import { useTheme } from "@/components/theme-provider"
 import { useState } from "react"
+import { 
+  FileText, 
+  Clock, 
+  Star, 
+  Trash2, 
+  ChevronDown,
+  Plus,
+  Settings,
+  Search
+} from "lucide-react"
 
 interface Folder {
   id: string
@@ -109,6 +119,12 @@ export function Sidebar({
   const storageTotal = props.storageLimit ?? 20 // GB
   const storagePercentage = (storageUsed / storageTotal) * 100
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [isExpanded, setIsExpanded] = React.useState(true)
+  const [quickPages] = React.useState([
+    { id: '1', title: 'Getting Started', icon: '📚' },
+    { id: '2', title: 'Product Roadmap', icon: '🛣️' },
+    { id: '3', title: 'Meeting Notes', icon: '📝' },
+  ])
 
   const getIcon = (iconName: keyof typeof Icons) => {
     const IconComponent = Icons[iconName]
@@ -134,7 +150,7 @@ export function Sidebar({
       <motion.div
         className={cn(
           "flex h-screen flex-col gap-4 border-r",
-          isDark ? "border-border/40 bg-background/95" : "border-border/10 bg-white/80",
+          isDark ? "border-border/40 bg-background/95" : "border-border/5 bg-white/95",
           "relative backdrop-blur-sm",
           className
         )}
@@ -263,9 +279,9 @@ export function Sidebar({
                       className="h-6 w-6"
                       onClick={() => setIsFoldersExpanded(!isFoldersExpanded)}
                     >
-                      <Icons.chevronDown className={cn(
+                      <ChevronDown className={cn(
                         "h-4 w-4 transition-transform",
-                        isFoldersExpanded ? "rotate-0" : "-rotate-90"
+                        !isFoldersExpanded && "-rotate-90"
                       )} />
                     </Button>
                   </div>
@@ -346,7 +362,7 @@ export function Sidebar({
             "mx-2 mb-2 rounded-xl border",
             isDark 
               ? "bg-background/60 border-border/40"
-              : "bg-white/60 border-border/10",
+              : "bg-white border-border/5",
             "backdrop-blur-sm overflow-hidden",
             isHovered ? "p-4" : "p-2"
           )}
@@ -384,7 +400,7 @@ export function Sidebar({
             "mx-2 mb-2 rounded-xl border",
             isDark 
               ? "bg-background/60 border-border/40"
-              : "bg-white/60 border-border/10",
+              : "bg-white border-border/5",
             "backdrop-blur-sm overflow-hidden shadow-sm",
             isHovered ? "p-4" : "p-2"
           )}
@@ -493,7 +509,7 @@ export function Sidebar({
             "mx-2 mb-2 rounded-xl border",
             isDark 
               ? "bg-background/60 border-border/40"
-              : "bg-white/60 border-border/10",
+              : "bg-white border-border/5",
             "backdrop-blur-sm overflow-hidden",
             isHovered ? "p-4" : "p-2"
           )}

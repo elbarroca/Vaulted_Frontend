@@ -1,49 +1,96 @@
-import { useParams, useNavigate } from "react-router-dom"
-import { DocumentEditor } from "@/components/ui/document-editor"
-import { ToastSave } from "@/components/ui/toast-save"
-import * as React from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import { MarkdownEditor } from "@/components/ui/markdown-editor"
+import { useEffect, useState } from "react"
+import { motion } from "framer-motion"
 
-export function DocumentPage() {  
-  const { id } = useParams()
+export function DocumentPage() {
   const navigate = useNavigate()
-  const [saveState, setSaveState] = React.useState<"initial" | "loading" | "success">("initial")
+  const { id } = useParams()
+  const [isLoading, setIsLoading] = useState(true)
+  const [content, setContent] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSave = async (title: string, content: string) => {
+  useEffect(() => {
+    const loadDocument = async () => {
+      if (id === 'new') {
+        setContent("")
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        // Here you would typically fetch the document from your backend
+        // const doc = await fetchDocument(id)
+        // setContent(doc.content)
+        setContent("Loading content...")
+      } catch (err) {
+        setError("Failed to load document")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadDocument()
+  }, [id])
+
+  const handleSave = async (content: string) => {
     try {
-      setSaveState("loading")
-      // Here you would typically save to your backend
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
-      setSaveState("success")
-      setTimeout(() => setSaveState("initial"), 2000)
-    } catch (error) {
-      setSaveState("initial")
+      // Here you would typically save the content to your backend
+      console.log('Saving content:', content)
+      
+      if (!id || id === 'new') {
+        // TODO: Create document in backend
+        // const newId = await createDocument(content)
+        // navigate(`/document/${newId}`)
+      }
+    } catch (err) {
+      console.error('Failed to save document:', err)
     }
   }
-  const handleReset = () => {
-    // Reset document changes
-    setSaveState("initial")
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold text-red-500 mb-2">Error</h2>
+          <p className="text-muted-foreground">{error}</p>
+          <button 
+            onClick={() => navigate("/dashboard")}
+            className="mt-4 text-primary hover:underline"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    )
   }
 
-  const handleSaveClick = () => {
-    handleSave("", "") // Pass empty strings as placeholders
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-muted-foreground">Loading document...</p>
+        </motion.div>
+      </div>
+    )
   }
 
   return (
-    <div className="relative">
-      <DocumentEditor
-        initialTitle={id ? undefined : "Untitled Document"}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-screen"
+    >
+      <MarkdownEditor
+        initialContent={content}
         onSave={handleSave}
+        onClose={() => navigate("/dashboard")}
       />
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
-        <ToastSave
-          state={saveState}
-          onSave={handleSaveClick}
-          onReset={handleReset}
-          loadingText="Saving document..."
-          successText="Document saved"
-          initialText="Unsaved changes"
-        />
-      </div>
-    </div>
+    </motion.div>
   )
 }

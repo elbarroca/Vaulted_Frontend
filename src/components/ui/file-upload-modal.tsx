@@ -56,24 +56,32 @@ export function FileUploadModal({ open, onClose, onUpload, isUploading = false }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px]">
-        <div className="w-full" {...getRootProps()}>
-          <motion.div
-            whileHover="animate"
-            className={cn(
-              "p-10 group/file block rounded-lg cursor-pointer w-full relative overflow-hidden",
-              isDark ? "bg-background" : "bg-white"
-            )}
-          >
+      <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden">
+        <div className="relative w-full">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/90">
+            <div className="absolute inset-0" style={{ 
+              backgroundImage: isDark 
+                ? 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)'
+                : 'radial-gradient(circle at 2px 2px, rgba(0,0,0,0.05) 1px, transparent 0)',
+              backgroundSize: '32px 32px' 
+            }} />
+          </div>
+
+          {/* Upload Area */}
+          <div className="relative p-8" {...getRootProps()}>
             <input {...getInputProps()} />
-            <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]">
-              <GridPattern />
-            </div>
-            <div className="flex flex-col items-center justify-center">
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center justify-center text-center"
+            >
               <motion.div 
                 className={cn(
-                  "rounded-full p-6 mb-4",
-                  isDark ? "bg-blue-500/10" : "bg-blue-50"
+                  "rounded-full p-6 mb-6",
+                  isDark ? "bg-blue-500/10" : "bg-blue-50",
+                  "transition-all duration-300"
                 )}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
@@ -83,112 +91,145 @@ export function FileUploadModal({ open, onClose, onUpload, isUploading = false }
                   isDark ? "text-blue-400" : "text-blue-600"
                 )} />
               </motion.div>
-              <p className={cn(
-                "relative z-20 font-bold text-lg",
-                isDark ? "text-blue-400" : "text-blue-600"
-              )}>
-                Upload Files
-              </p>
-              <p className="relative z-20 text-muted-foreground text-base mt-2">
-                Drag and drop your files here or click to browse
-              </p>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="space-y-2"
+              >
+                <h3 className={cn(
+                  "text-2xl font-semibold",
+                  isDark ? "text-blue-400" : "text-blue-600"
+                )}>
+                  Upload Files
+                </h3>
+                <p className="text-muted-foreground text-base max-w-md mx-auto">
+                  Drag and drop your files here, or click to browse through your files
+                </p>
+              </motion.div>
+
+              {/* File Types */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="mt-8 grid grid-cols-3 gap-4 max-w-2xl mx-auto w-full"
+              >
+                {[
+                  { icon: "image", label: "Images", types: "JPG, PNG, GIF" },
+                  { icon: "fileText", label: "Documents", types: "PDF, DOC, TXT" },
+                  { icon: "table", label: "Spreadsheets", types: "XLS, CSV" }
+                ].map((item, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "p-4 rounded-xl text-center",
+                      isDark 
+                        ? "bg-background/60 border border-border/40"
+                        : "bg-white/60 border border-border/10",
+                      "backdrop-blur-sm"
+                    )}
+                  >
+                    <div className={cn(
+                      "mx-auto w-fit p-3 rounded-lg mb-3",
+                      isDark ? "bg-background/60" : "bg-gray-50"
+                    )}>
+                      {/* Render icon based on type */}
+                      {(() => {
+                        switch (item.icon) {
+                          case "image":
+                            return <Icons.image className="h-5 w-5 text-muted-foreground" />;
+                          case "fileText":
+                            return <Icons.fileText className="h-5 w-5 text-muted-foreground" />;
+                          case "table":
+                            return <Icons.table className="h-5 w-5 text-muted-foreground" />;
+                          default:
+                            return <Icons.file className="h-5 w-5 text-muted-foreground" />;
+                        }
+                      })()}
+                    </div>
+                    <h4 className="font-medium mb-1">{item.label}</h4>
+                    <p className="text-xs text-muted-foreground">{item.types}</p>
+                  </div>
+                ))}
+              </motion.div>
               
+              {/* Upload Progress */}
               {isUploading && (
-                <div className="w-full max-w-md mt-6 space-y-2">
-                  <Progress value={uploadProgress} className="h-2" />
-                  <p className="text-sm text-center text-muted-foreground">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full max-w-md mt-8"
+                >
+                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-blue-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                  <p className="text-sm text-center text-muted-foreground mt-2">
                     Uploading... {uploadProgress}%
                   </p>
-                </div>
+                </motion.div>
               )}
+            </motion.div>
 
-              <div className="relative w-full mt-10 max-w-xl mx-auto">
-                <AnimatePresence mode="wait">
+            {/* File List */}
+            <AnimatePresence mode="wait">
+              {files.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mt-8 space-y-2"
+                >
                   {files.map((file, idx) => (
                     <motion.div
-                      key={`file-${idx}`}
-                      layoutId={`file-${idx}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
+                      key={idx}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
                       className={cn(
-                        "relative overflow-hidden z-40 flex flex-col items-start justify-start p-4 mt-4 w-full mx-auto rounded-xl border",
+                        "flex items-center justify-between p-4 rounded-lg",
                         isDark 
-                          ? "bg-background/60 border-border/40"
-                          : "bg-white/60 border-border/10",
+                          ? "bg-background/60 border border-border/40"
+                          : "bg-white/60 border border-border/10",
                         "backdrop-blur-sm"
                       )}
                     >
-                      <div className="flex justify-between w-full items-center gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            isDark ? "bg-blue-500/10" : "bg-blue-50"
-                          )}>
-                            {getFileIcon(file.type)}
-                          </div>
-                          <div>
-                            <p className="font-medium truncate max-w-xs">
-                              {file.name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatFileSize(file.size)}
-                            </p>
-                          </div>
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "p-2 rounded-lg",
+                          isDark ? "bg-background/60" : "bg-gray-50"
+                        )}>
+                          {getFileIcon(file.type)}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="shrink-0 text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setFiles(files.filter((_, i) => i !== idx))
-                          }}
-                        >
-                          <Icons.trash className="h-4 w-4" />
-                        </Button>
+                        <div>
+                          <p className="font-medium truncate max-w-[200px]">
+                            {file.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive/90"
+                        onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                      >
+                        <Icons.x className="h-4 w-4" />
+                      </Button>
                     </motion.div>
                   ))}
-
-                  {!files.length && !isUploading && (
-                    <motion.div
-                      layoutId="upload-placeholder"
-                      variants={mainVariant}
-                      transition={{
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 20
-                      }}
-                      className={cn(
-                        "relative z-40 flex items-center justify-center h-32 mt-4 w-full max-w-[8rem] mx-auto rounded-xl border",
-                        isDark 
-                          ? "bg-background/60 border-border/40"
-                          : "bg-white/60 border-border/10",
-                        "backdrop-blur-sm"
-                      )}
-                    >
-                      {isDragActive ? (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="flex flex-col items-center gap-2 text-primary"
-                        >
-                          <p>Drop files here</p>
-                          <Icons.upload className="h-4 w-4" />
-                        </motion.div>
-                      ) : (
-                        <Icons.upload className={cn(
-                          "h-6 w-6",
-                          isDark ? "text-blue-400" : "text-blue-600"
-                        )} />
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
