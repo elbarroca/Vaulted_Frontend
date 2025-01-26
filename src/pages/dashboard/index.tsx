@@ -1,13 +1,13 @@
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Icons } from "@/components/ui/icons"
 import { FileUploadModal } from "@/components/ui/file-upload-modal"
 import { Sidebar } from "@/components/ui/sidebar"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTheme } from "@/components/theme-provider"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -311,11 +311,25 @@ export function DashboardPage() {
   ])
 
   const currentFolder = folders.find(f => f.id === currentFolderId)
-  const filteredFiles = files.filter(f => f.folderId === currentFolderId)
-  const starredFiles = files.filter(f => f.starred)
-  const recentFiles = [...files].sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  ).slice(0, 5)
+  const filteredFiles = React.useMemo(() => {
+    if (!currentFolderId) {
+      switch (location.pathname) {
+        case '/dashboard/trash':
+          return files.filter(f => f.isDeleted)
+        case '/dashboard/starred':
+          return files.filter(f => f.starred)
+        case '/dashboard/recent':
+          return [...files].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          ).slice(0, 12)
+        case '/dashboard/shared':
+          return files.filter(f => f.shared)
+        default:
+          return files
+      }
+    }
+    return files.filter(f => f.folderId === currentFolderId)
+  }, [files, currentFolderId, location.pathname])
 
   const [isUploading, setIsUploading] = React.useState(false)
 
@@ -340,6 +354,24 @@ export function DashboardPage() {
       )
 
       setFiles(prev => [...prev, ...newFiles])
+      
+      // Update folder with new files
+      if (currentFolderId) {
+        setFolders(prev => prev.map(folder => {
+          if (folder.id === currentFolderId) {
+            return {
+              ...folder,
+              files: [...(folder.files || []), ...newFiles.map(file => ({
+                id: file.id,
+                name: file.name,
+                type: file.type
+              }))]
+            }
+          }
+          return folder
+        }))
+      }
+      
       setShowUploadModal(false)
       
       // Simulate API upload
@@ -388,6 +420,7 @@ export function DashboardPage() {
           created: new Date().toISOString()
         }
         setFolders(prev => [...prev, newFolder])
+        setCurrentFolderId(newFolder.id)
       }
       dialog.close()
       document.body.removeChild(dialog)
@@ -427,6 +460,20 @@ export function DashboardPage() {
 
     deleteBtn.onclick = () => {
       setFiles(prev => prev.filter(f => f.id !== fileId))
+      
+      // Remove file from folder
+      if (file.folderId) {
+        setFolders(prev => prev.map(folder => {
+          if (folder.id === file.folderId) {
+            return {
+              ...folder,
+              files: (folder.files || []).filter(f => f.id !== fileId)
+            }
+          }
+          return folder
+        }))
+      }
+      
       dialog.close()
       document.body.removeChild(dialog)
     }
@@ -507,30 +554,28 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background relative overflow-hidden">
-      {/* Layered Background Pattern */}
-      <div className="absolute inset-0 -z-10">
+    <div className="flex h-screen bg-background/50 relative overflow-hidden">
+      {/* Main Background with Squares */}
+      <div className="fixed inset-0 -z-10">
         {/* Primary Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-background/95" />
+        <div className={cn(
+          "absolute inset-0",
+          isDark 
+            ? "bg-gradient-to-br from-background via-background/95 to-violet-950/20"
+            : "bg-gradient-to-br from-background via-background/95 to-violet-100/30"
+        )} />
         
-        {/* Animated Squares Layer 1 - Slower, Larger */}
+        {/* Animated Squares Background - Global */}
         <Squares
-          className="opacity-[0.07]"
+          className={cn(
+            isDark ? "opacity-[0.08]" : "opacity-[0.05]",
+            "transition-opacity duration-1000"
+          )}
           direction="diagonal"
           speed={0.2}
-          squareSize={80}
-          hoverFillColor={isDark ? "rgba(59, 130, 246, 0.2)" : "rgba(59, 130, 246, 0.1)"}
-          borderColor={isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
-        />
-        
-        {/* Animated Squares Layer 2 - Faster, Smaller */}
-        <Squares
-          className="opacity-[0.05]"
-          direction="up"
-          speed={0.4}
-          squareSize={40}
-          hoverFillColor={isDark ? "rgba(99, 102, 241, 0.2)" : "rgba(99, 102, 241, 0.1)"}
-          borderColor={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}
+          squareSize={120}
+          hoverFillColor={isDark ? "rgba(124, 58, 237, 0.4)" : "rgba(124, 58, 237, 0.15)"}
+          borderColor={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}
         />
       </div>
 
@@ -540,356 +585,173 @@ export function DashboardPage() {
         onFolderSelect={setCurrentFolderId}
       />
       
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto relative">
+        {/* Content Background with Additional Squares */}
+        <div className="fixed inset-0 -z-10">
+          <Squares
+            className={cn(
+              isDark ? "opacity-[0.06]" : "opacity-[0.04]",
+              "transition-opacity duration-1000"
+            )}
+            direction="up"
+            speed={0.3}
+            squareSize={80}
+            hoverFillColor={isDark ? "rgba(139, 92, 246, 0.4)" : "rgba(139, 92, 246, 0.15)"}
+            borderColor={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"}
+          />
+        </div>
+
         <div className={cn(
-          "container mx-auto px-8 py-6",
-          isDark ? "bg-background/40" : "bg-background/40",
-          "backdrop-blur-md"
+          "container mx-auto px-8 py-6 relative z-10",
+          "min-h-full"
         )}>
-          {/* Header with Gradient Border */}
-          <header className="relative mb-8 pb-6">
-            <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-            <div className="flex items-center justify-between">
-              <div>
-                <motion.h1 
-                  className={cn(
-                    "text-4xl font-bold mb-2",
-                    isDark 
-                      ? "bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400"
-                      : "bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"
-                  )}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {currentFolder?.name || "My Files"}
-                </motion.h1>
-                <motion.div 
-                  className="flex items-center gap-3 text-muted-foreground"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <span className="text-lg">{files.length} file{files.length !== 1 && "s"}</span>
-                  <span className="text-border/60">•</span>
-                  <span className="text-lg">{formatTotalSize(files.reduce((acc, file) => acc + file.size, 0))}</span>
-                </motion.div>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className={cn(
-                        "flex items-center gap-2 px-6 h-11 rounded-full shadow-lg",
-                        isDark 
-                          ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:shadow-blue-500/10"
-                          : "bg-blue-50 hover:bg-blue-100 text-blue-600 hover:shadow-blue-500/5",
-                        "transition-all duration-300 hover:scale-105"
-                      )}>
-                        <Icons.add className="w-5 h-5" />
-                        <span className="font-medium">Create New</span>
-                        <Icons.chevronDown className="w-4 h-4 ml-1 opacity-70" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className={cn(
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <motion.h1 
+                className={cn(
+                  "text-4xl font-bold mb-2",
+                  isDark 
+                    ? "bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400"
+                    : "bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"
+                )}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                {currentFolder?.name || "My Files"}
+              </motion.h1>
+              <motion.div 
+                className="flex items-center gap-3 text-muted-foreground"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <span className="text-lg">{filteredFiles.length} file{filteredFiles.length !== 1 && "s"}</span>
+                <span className="text-border/60">•</span>
+                <span className="text-lg">{formatTotalSize(filteredFiles.reduce((acc, file) => acc + file.size, 0))}</span>
+              </motion.div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className={cn(
+                      "flex items-center gap-2 px-6 h-11 rounded-full shadow-lg",
+                      isDark 
+                        ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:shadow-blue-500/10"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-600 hover:shadow-blue-500/5",
+                      "transition-all duration-300 hover:scale-105"
+                    )}>
+                      <Icons.plus className="w-5 h-5" />
+                      <span className="font-medium">Create New</span>
+                      <Icons.chevronDown className="w-4 h-4 ml-1 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent 
+                    align="end" 
+                    className={cn(
                       "w-56 p-2",
                       isDark ? "bg-background/80" : "bg-white/80",
                       "backdrop-blur-sm border-border/20"
-                    )}>
-                      <DropdownMenuItem 
-                        onClick={() => setShowUploadModal(true)}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                      >
-                        <Icons.upload className="w-4 h-4" />
-                        Upload Files
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={handleCreateFolder}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                      >
-                        <Icons.folder className="w-4 h-4" />
-                        New Folder
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => navigate("/document/new")}
-                        className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
-                      >
-                        <Icons.fileText className="w-4 h-4" />
-                        New Document
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </motion.div>
-              </div>
-            </div>
-          </header>
-
-          {/* Quick Access Section */}
-          <motion.section 
-            className="mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <h2 className={cn(
-                  "text-2xl font-semibold",
-                  isDark ? "text-blue-400" : "text-blue-600"
-                )}>Quick Access</h2>
-                <span className="text-sm text-muted-foreground">Recently accessed files</span>
-              </div>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "text-sm gap-2 hover:bg-primary/10",
-                  isDark ? "text-blue-400 hover:text-blue-300" : "text-blue-600 hover:text-blue-500"
-                )}
-              >
-                View All
-                <Icons.arrowRight className="w-3 h-3" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {recentFiles.slice(0, 4).map((file, index) => (
-                <motion.div
-                  key={file.id}
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ 
-                    delay: 0.1 * index,
-                    duration: 0.3,
-                    ease: "easeOut"
-                  }}
-                >
-                  <FileCard
-                    file={file}
-                    onStar={() => handleStarFile(file.id)}
-                    onDelete={() => handleDeleteFile(file.id)}
-                    onShare={() => handleShareFile(file.id)}
-                    onDownload={() => handleDownloadFile(file.id)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-
-          {/* Tabs Section */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className={cn(
-              "rounded-xl border",
-              isDark 
-                ? "bg-background/40 border-border/30"
-                : "bg-white/40 border-border/10",
-              "backdrop-blur-md shadow-lg"
-            )}
-          >
-            <Tabs defaultValue="all" className="p-6">
-              <TabsList className={cn(
-                "p-1 gap-1",
-                isDark 
-                  ? "bg-background/60"
-                  : "bg-white/60",
-                "backdrop-blur-sm rounded-lg"
-              )}>
-                <TabsTrigger value="all" className="rounded-md px-6 data-[state=active]:bg-primary/20">
-                  <span className="flex items-center gap-2">
-                    <Icons.folder className="w-4 h-4" />
-                    All Files
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="recent" className="rounded-md px-6 data-[state=active]:bg-primary/20">
-                  <span className="flex items-center gap-2">
-                    <Icons.clock className="w-4 h-4" />
-                    Recent
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="starred" className="rounded-md px-6 data-[state=active]:bg-primary/20">
-                  <span className="flex items-center gap-2">
-                    <Icons.star className="w-4 h-4" />
-                    Starred
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="documents" className="rounded-md px-6 data-[state=active]:bg-primary/20">
-                  <span className="flex items-center gap-2">
-                    <Icons.fileText className="w-4 h-4" />
-                    Documents
-                  </span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="all" className="mt-8">
-                {files.length === 0 ? (
-                  <motion.div 
-                    className={cn(
-                      "text-center py-16 rounded-xl border",
-                      isDark 
-                        ? "bg-background/40 border-border/30"
-                        : "bg-white/40 border-border/10",
-                      "backdrop-blur-sm"
                     )}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2 }}
                   >
-                    <div className="relative w-20 h-20 mx-auto mb-6">
-                      <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping" />
-                      <div className="absolute inset-0 bg-blue-500/10 rounded-full animate-pulse" />
-                      <div className="relative z-10 flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/10">
-                        <Icons.file className="w-10 h-10 text-blue-500" />
-                      </div>
-                    </div>
-                    <h3 className="text-2xl font-medium mb-3">No files yet</h3>
-                    <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                      Upload your first file or create a new document to get started with your workspace.
-                    </p>
-                    <Button
+                    <DropdownMenuItem 
                       onClick={() => setShowUploadModal(true)}
-                      className={cn(
-                        "flex items-center gap-2 px-8 h-11 rounded-full",
-                        isDark 
-                          ? "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
-                          : "bg-blue-50 hover:bg-blue-100 text-blue-600",
-                        "hover:scale-105 transition-all duration-300"
-                      )}
+                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
                     >
                       <Icons.upload className="w-4 h-4" />
                       Upload Files
-                    </Button>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                  >
-                    {files.map((file, index) => (
-                      <motion.div
-                        key={file.id}
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 * index,
-                          duration: 0.3,
-                          ease: "easeOut"
-                        }}
-                      >
-                        <FileCard
-                          file={file}
-                          onStar={() => handleStarFile(file.id)}
-                          onDelete={() => handleDeleteFile(file.id)}
-                          onShare={() => handleShareFile(file.id)}
-                          onDownload={() => handleDownloadFile(file.id)}
-                        />
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-              </TabsContent>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={handleCreateFolder}
+                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
+                    >
+                      <Icons.folder className="w-4 h-4" />
+                      New Folder
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate("/document/new")}
+                      className="flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer hover:bg-primary/10"
+                    >
+                      <Icons.fileText className="w-4 h-4" />
+                      New Document
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </motion.div>
+            </div>
+          </div>
 
-              <TabsContent value="recent" className="mt-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                >
-                  {files
-                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                    .slice(0, 12)
-                    .map((file, index) => (
-                      <motion.div
-                        key={file.id}
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 * index,
-                          duration: 0.3,
-                          ease: "easeOut"
-                        }}
-                      >
-                        <FileCard
-                          file={file}
-                          onStar={() => handleStarFile(file.id)}
-                          onDelete={() => handleDeleteFile(file.id)}
-                          onShare={() => handleShareFile(file.id)}
-                          onDownload={() => handleDownloadFile(file.id)}
-                        />
-                      </motion.div>
-                    ))}
-                </motion.div>
-              </TabsContent>
+          {/* Search and Filters */}
+          <div className="flex items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              <Input
+                placeholder="Search files..."
+                className="max-w-md"
+                prefix={<Icons.search className="h-4 w-4 text-muted-foreground" />}
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Icons.filter className="h-4 w-4" />
+                    Sort by
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                    <Icons.clock className="mr-2 h-4 w-4" /> Date
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Icons.text className="mr-2 h-4 w-4" /> Name
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Icons.arrowUpDown className="mr-2 h-4 w-4" /> Size
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Icons.file className="mr-2 h-4 w-4" /> Type
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-              <TabsContent value="starred" className="mt-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                >
-                  {files
-                    .filter(file => file.starred)
-                    .map((file, index) => (
-                      <motion.div
-                        key={file.id}
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 * index,
-                          duration: 0.3,
-                          ease: "easeOut"
-                        }}
-                      >
-                        <FileCard
-                          file={file}
-                          onStar={() => handleStarFile(file.id)}
-                          onDelete={() => handleDeleteFile(file.id)}
-                          onShare={() => handleShareFile(file.id)}
-                          onDownload={() => handleDownloadFile(file.id)}
-                        />
-                      </motion.div>
-                    ))}
-                </motion.div>
-              </TabsContent>
+            <div className="flex items-center gap-2">
+              <Tabs defaultValue="grid" className="w-[200px]">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="grid" className="gap-2">
+                    <Icons.layoutGrid className="h-4 w-4" />
+                    Grid
+                  </TabsTrigger>
+                  <TabsTrigger value="list" className="gap-2">
+                    <Icons.layoutList className="h-4 w-4" />
+                    List
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
 
-              <TabsContent value="documents" className="mt-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                >
-                  {files
-                    .filter(file => file.type === "document")
-                    .map((file, index) => (
-                      <motion.div
-                        key={file.id}
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={{ 
-                          delay: 0.05 * index,
-                          duration: 0.3,
-                          ease: "easeOut"
-                        }}
-                      >
-                        <FileCard
-                          file={file}
-                          onStar={() => handleStarFile(file.id)}
-                          onDelete={() => handleDeleteFile(file.id)}
-                          onShare={() => handleShareFile(file.id)}
-                          onDownload={() => handleDownloadFile(file.id)}
-                        />
-                      </motion.div>
-                    ))}
-                </motion.div>
-              </TabsContent>
-            </Tabs>
-          </motion.div>
+          {/* Files Grid */}
+          <div className="relative">
+            <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredFiles.map((file) => (
+                <FileCard
+                  key={file.id}
+                  file={file}
+                  onStar={() => handleStarFile(file.id)}
+                  onDelete={() => handleDeleteFile(file.id)}
+                  onShare={() => handleShareFile(file.id)}
+                  onDownload={() => handleDownloadFile(file.id)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </main>
 

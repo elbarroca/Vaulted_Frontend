@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Icons } from "@/components/ui/icons"
 import { motion } from "framer-motion"
+import { cn } from "@/lib/utils"
 
 export function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -134,6 +135,26 @@ export function SignUpPage() {
               Google
             </Button>
           </div>
+          <Button 
+            variant="outline" 
+            disabled={isLoading} 
+            className={cn(
+              "w-full gap-2 relative group",
+              "bg-background hover:bg-accent",
+              "border-input hover:border-accent",
+              "h-12"
+            )}
+          >
+            <span role="img" aria-label="wallet" className="text-xl relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400">
+            👤
+            </span>
+            <span className="font-medium relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 dark:from-blue-400 dark:via-indigo-400 dark:to-blue-400">
+              Connect Wallet
+            </span>
+            <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+              <Icons.arrowRight className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            </div>
+          </Button>
           <p className="px-8 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Button 

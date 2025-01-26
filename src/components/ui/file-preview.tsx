@@ -15,10 +15,11 @@ interface FilePreviewProps {
     size: number
     url?: string
     previewUrl?: string
+    id: string
   }
-  onDelete?: () => void
-  onShare?: () => void
-  onDownload?: () => void
+  onDelete?: (id: string) => void
+  onShare?: (id: string) => void
+  onDownload?: (id: string) => void
 }
 
 export function FilePreview({ 
@@ -31,6 +32,10 @@ export function FilePreview({
 }: FilePreviewProps) {
   const { theme } = useTheme()
   const isDark = theme === "dark"
+
+  const handleDelete = () => onDelete?.(file.id)
+  const handleShare = () => onShare?.(file.id)
+  const handleDownload = () => onDownload?.(file.id)
 
   const getFileIcon = () => {
     const extension = file.name.split('.').pop()?.toLowerCase()
@@ -154,7 +159,7 @@ export function FilePreview({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={onShare}
+                  onClick={handleShare}
                   className={cn(
                     "hover:bg-blue-500/10 hover:text-blue-500",
                     isDark ? "text-blue-400" : "text-blue-600"
@@ -167,7 +172,7 @@ export function FilePreview({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={onDownload}
+                  onClick={handleDownload}
                   className={cn(
                     "hover:bg-green-500/10 hover:text-green-500",
                     isDark ? "text-green-400" : "text-green-600"
@@ -180,7 +185,7 @@ export function FilePreview({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={onDelete}
+                  onClick={handleDelete}
                   className="hover:bg-red-500/10 hover:text-red-500"
                 >
                   <Icons.trash className="h-4 w-4" />

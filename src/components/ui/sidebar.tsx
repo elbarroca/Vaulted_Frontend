@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { motion, AnimatePresence } from "framer-motion"
 import { useTheme } from "@/components/theme-provider"
+import { useState } from "react"
 
 interface Folder {
   id: string
@@ -101,12 +102,13 @@ export function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [isHovered, setIsHovered] = React.useState(false)
   const [isFoldersExpanded, setIsFoldersExpanded] = React.useState(true)
   const storageUsed = props.storageUsed ?? 12 // GB
   const storageTotal = props.storageLimit ?? 20 // GB
   const storagePercentage = (storageUsed / storageTotal) * 100
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
 
   const getIcon = (iconName: keyof typeof Icons) => {
     const IconComponent = Icons[iconName]
@@ -114,6 +116,18 @@ export function Sidebar({
   }
 
   const isDark = theme === "dark"
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(folderId)) {
+        next.delete(folderId)
+      } else {
+        next.add(folderId)
+      }
+      return next
+    })
+  }
 
   return (
     <TooltipProvider>
@@ -284,7 +298,10 @@ export function Sidebar({
                                 !isActive && (isDark ? "hover:bg-blue-500/5" : "hover:bg-blue-50/50"),
                                 !isHovered && "w-10 p-0 mx-auto"
                               )}
-                              onClick={() => onFolderSelect?.(folder.id)}
+                              onClick={() => {
+                                onFolderSelect(folder.id)
+                                toggleFolder(folder.id)
+                              }}
                             >
                               <span className={cn(
                                 "flex items-center justify-center",
@@ -322,6 +339,44 @@ export function Sidebar({
             </div>
           )}
         </nav>
+
+        {/* Theme Toggle */}
+        <motion.div
+          className={cn(
+            "mx-2 mb-2 rounded-xl border",
+            isDark 
+              ? "bg-background/60 border-border/40"
+              : "bg-white/60 border-border/10",
+            "backdrop-blur-sm overflow-hidden",
+            isHovered ? "p-4" : "p-2"
+          )}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-between"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+          >
+            <span className={cn(
+              "flex items-center gap-2",
+              isHovered ? "w-auto" : "w-6"
+            )}>
+              {isDark ? (
+                <Icons.moon className="h-4 w-4" />
+              ) : (
+                <Icons.sun className="h-4 w-4" />
+              )}
+              {isHovered && (
+                <span className="text-sm">
+                  {isDark ? "Dark" : "Light"} Mode
+                </span>
+              )}
+            </span>
+            {isHovered && (
+              <Icons.chevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        </motion.div>
 
         {/* Storage Section */}
         <motion.div
@@ -430,6 +485,71 @@ export function Sidebar({
               </span>
             </motion.div>
           )}
+        </motion.div>
+
+        {/* Referral Section */}
+        <motion.div
+          className={cn(
+            "mx-2 mb-2 rounded-xl border",
+            isDark 
+              ? "bg-background/60 border-border/40"
+              : "bg-white/60 border-border/10",
+            "backdrop-blur-sm overflow-hidden",
+            isHovered ? "p-4" : "p-2"
+          )}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "w-full gap-2 group",
+              isDark
+                ? "hover:bg-emerald-500/10"
+                : "hover:bg-emerald-50",
+              isHovered ? "justify-between" : "justify-center"
+            )}
+            onClick={() => navigate("/dashboard/referral")}
+          >
+            <span className={cn(
+              "flex items-center gap-2",
+              isHovered ? "w-auto" : "w-6"
+            )}>
+              <motion.div
+                whileHover={{ scale: 1.1 }}
+                className={cn(
+                  "p-1 rounded-lg",
+                  isDark
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "bg-emerald-50 text-emerald-600"
+                )}
+              >
+                <span role="img" aria-label="gift" className="text-lg">🎁</span>
+              </motion.div>
+              {isHovered && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex flex-col items-start"
+                >
+                  <span className={cn(
+                    "font-semibold",
+                    isDark ? "text-emerald-400" : "text-emerald-600"
+                  )}>
+                    Refer & Earn
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Invite friends, get rewards
+                  </span>
+                </motion.div>
+              )}
+            </span>
+            {isHovered && (
+              <Icons.chevronRight className={cn(
+                "h-4 w-4",
+                isDark ? "text-emerald-400" : "text-emerald-600"
+              )} />
+            )}
+          </Button>
         </motion.div>
 
         {/* User Profile */}

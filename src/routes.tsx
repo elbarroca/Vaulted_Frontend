@@ -1,8 +1,9 @@
-import { Route, Routes as RouterRoutes } from "react-router-dom"
-import { LandingPage } from "./pages/landing"
-import { SignInPage } from "./pages/auth/sign-in"
-import { SignUpPage } from "./pages/auth/sign-up"
+import { Routes as RouterRoutes, Route } from "react-router-dom"
+import { LandingPage } from "@/pages/landing"
+import { SignInPage } from "@/pages/auth/sign-in"
+import { SignUpPage } from "@/pages/auth/sign-up"
 import { DashboardPage } from "@/pages/dashboard"
+import { ReferralPage } from "@/pages/dashboard/referral"
 
 export function Routes() {
   return (
@@ -15,7 +16,7 @@ export function Routes() {
       <Route path="/dashboard/recent" element={<DashboardPage />} />
       <Route path="/dashboard/starred" element={<DashboardPage />} />
       <Route path="/dashboard/trash" element={<DashboardPage />} />
-      <Route path="/dashboard/upgrade" element={<DashboardPage />} />
+      <Route path="/dashboard/referral" element={<ReferralPage />} />
     </RouterRoutes>
   )
 } 
