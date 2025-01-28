@@ -113,6 +113,7 @@ export const Icons = {
   moreVertical: MoreVertical,
   layoutGrid: LayoutGrid,
   layoutList: LayoutList,
+  wallet: Wallet,
   gitHub: ({ ...props }: LucideProps) => (
     <svg
       aria-hidden="true"

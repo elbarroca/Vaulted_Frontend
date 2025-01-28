@@ -1,14 +1,23 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Icons } from "@/components/ui/icons"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { useWallet } from "@/contexts/WalletProvider"
 
 export function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+  const { connectWallet, activeAccount } = useWallet()
+
+  // Redirect if wallet is already connected
+  useEffect(() => {
+    if (activeAccount) {
+      navigate("/dashboard")
+    }
+  }, [activeAccount, navigate])
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -19,6 +28,18 @@ export function SignUpPage() {
       setIsLoading(false)
       navigate("/dashboard")
     }, 1000)
+  }
+
+  const handleWalletConnect = async () => {
+    try {
+      setIsLoading(true)
+      await connectWallet()
+      navigate("/dashboard")
+    } catch (error) {
+      console.error("Failed to connect wallet:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -138,6 +159,7 @@ export function SignUpPage() {
           <Button 
             variant="outline" 
             disabled={isLoading} 
+            onClick={handleWalletConnect}
             className={cn(
               "w-full gap-2 relative group",
               "bg-background hover:bg-accent",
@@ -146,14 +168,17 @@ export function SignUpPage() {
             )}
           >
             <span role="img" aria-label="wallet" className="text-xl relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400">
-            👤
+              👤
             </span>
             <span className="font-medium relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 dark:from-blue-400 dark:via-indigo-400 dark:to-blue-400">
-              Connect Wallet
+              {isLoading ? "Connecting..." : "Connect Wallet"}
             </span>
-            <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-              <Icons.arrowRight className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-            </div>
+            {!isLoading && (
+              <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                <Icons.arrowRight className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+              </div>
+            )}
+            {isLoading && <Icons.spinner className="absolute right-4 h-4 w-4 animate-spin" />}
           </Button>
           <p className="px-8 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
