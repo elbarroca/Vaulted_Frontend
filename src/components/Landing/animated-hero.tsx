@@ -8,7 +8,12 @@ import { HeroPill } from "@/components/Landing/hero-pill";
 function Hero() {
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
-    () => ["secure", "decentralized", "private", "yours"],
+    () => [
+      "Your Privacy.",
+      "Truly Decentralized.",
+      "No Exceptions.",
+      "Your Access Only"
+    ],
     []
   );
 
@@ -68,11 +73,11 @@ function Hero() {
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-7xl tracking-tighter text-center font-regular">
               <span className="text-white block mb-2">Your Data, Your Rules</span>
-              <span className="relative flex w-full justify-center overflow-hidden text-center h-20 md:h-24">
+              <span className="relative flex w-full justify-center overflow-hidden text-center h-24 md:h-28">
                 {titles.map((title, index) => (
                   <motion.span
                     key={index}
-                    className="absolute font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400"
+                    className="absolute font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400 max-w-3xl px-4"
                     initial={getRandomAnimation(index)}
                     transition={{ 
                       type: "spring", 
@@ -92,7 +97,7 @@ function Hero() {
                         : getRandomAnimation(index)
                     }
                   >
-                    100% {title}
+                    {title}
                   </motion.span>
                 ))}
               </span>
