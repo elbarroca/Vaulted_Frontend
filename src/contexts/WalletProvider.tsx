@@ -1,7 +1,7 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { web3Enable, web3Accounts, web3FromAddress } from '@polkadot/extension-dapp';
+import { web3FromAddress } from '@polkadot/extension-dapp';
 import { InjectedExtension } from '@polkadot/extension-inject/types';
-import React, { createContext, useContext, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { NETWORKS } from '@/lib/cereNetwork';
 import type { AccountData } from '@polkadot/types/interfaces/balances';
 import { Web3Signer } from '@cere-ddc-sdk/blockchain';
@@ -17,14 +17,10 @@ import {
 } from '@cere-ddc-sdk/ddc-client';
 import { v4 as uuidv4 } from 'uuid';
 import { FileMetadata } from '@/types';
+import { getAdapter } from "@/misc/nightly";
+import { toast } from "@/hooks/use-toast";
 
 const CERE = BigInt('10000000000');
-
-declare global {
-  interface Window {
-    injectedWeb3?: Record<string, any>;
-  }
-}
 
 export interface ImportedAccount {
   address: string;
@@ -48,63 +44,41 @@ interface WalletAccount {
 }
 
 export interface WalletContextInterface {
-  connectWallet: () => Promise<{ address: string; network: string }>;
-  disconnectWallet: () => Promise<void>;
-  getBalance: (address: string) => Promise<string>;
+  connectAccount: (account: WalletAccount) => Promise<void>;
+  disconnectAccount: () => Promise<void>;
+  getAccountBalance: (address: string) => Promise<string>;
   switchNetwork: (network: string) => Promise<void>;
   signMessage: (message: string) => Promise<string>;
-  api: ApiPromise | null;
   activeAccount: string | null;
   activeNetwork: string | null;
-  accounts: WalletAccount[];
-  web3Signer: Web3Signer | null;
-  ddcClient: DdcClient | null;
+  createPrivateBucket: () => Promise<BucketId>;
   uploadFile: (file: File) => Promise<FileMetadata>;
   shareFile: (fileMetadata: FileMetadata) => Promise<string>;
   downloadFile: (fileMetadata: FileMetadata, accessToken: string, signature: string) => Promise<void>;
   readFile: (bucketId: bigint, cid: string) => Promise<string | undefined>;
   readSharedFile: (bucketId: bigint, cid: string, accessToken: string) => Promise<string | undefined>;
-  createPrivateBucket: () => Promise<BucketId>;
-  myFiles: FileMetadata[];
+  files: FileMetadata[];
   isLoading: boolean;
   error: Error | null;
-  extensions: any[];
-  getWalletExtensions: () => Promise<void>;
-  connectWithExtension: (extension: any) => Promise<{ address: string; network: string }>;
-  providers: any[];
-  getWalletProviders: () => Promise<void>;
-  getWalletAccounts: (source: string) => Promise<WalletAccount[]>;
-  connectWithAccount: (account: WalletAccount) => Promise<void>;
 }
 
 const defaultContext: WalletContextInterface = {
-  connectWallet: async () => ({ address: '', network: '' }),
-  disconnectWallet: async () => {},
-  getBalance: async () => '0',
+  connectAccount: async () => {},
+  disconnectAccount: async () => {},
+  getAccountBalance: async () => '0',
   switchNetwork: async () => {},
   signMessage: async () => '',
-  api: null,
   activeAccount: null,
   activeNetwork: null,
-  accounts: [],
-  web3Signer: null,
-  ddcClient: null,
   uploadFile: async () => ({ id: '', name: '', size: 0, uploadedBy: '', uploadedAt: new Date(), authorizedUsers: [], cid: '', mimeType: '', description: '', folderId: null }),
   shareFile: async () => '',
   downloadFile: async () => {},
   readFile: async () => undefined,
   readSharedFile: async () => undefined,
   createPrivateBucket: async () => BigInt('0'),
-  myFiles: [],
+  files: [],
   isLoading: false,
   error: null,
-  extensions: [],
-  getWalletExtensions: async () => {},
-  connectWithExtension: async () => ({ address: '', network: '' }),
-  providers: [],
-  getWalletProviders: async () => {},
-  getWalletAccounts: async () => [],
-  connectWithAccount: async () => {},
 };
 
 const WalletContext = createContext<WalletContextInterface>(defaultContext);
@@ -113,20 +87,16 @@ export const useWallet = () => useContext(WalletContext);
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [api, setApi] = useState<ApiPromise | null>(null);
-  const [accounts, setAccounts] = useState<WalletAccount[]>([]);
+  const [ddcClient, setDdcClient] = useState<DdcClient | null>(null);
+
   const [activeAccount, setActiveAccount] = useState<string | null>(null);
   const [activeNetwork, setActiveNetwork] = useState<string | null>(null);
-  const [extensions, setExtensions] = useState<any[]>([]);
   const [web3Signer, setWeb3Signer] = useState<Web3Signer | null>(null);
-  const [ddcClient, setDdcClient] = useState<DdcClient | null>(null);
-  const [myFiles, setMyFiles] = useState<FileMetadata[]>([]);
+
+  const [files, setFiles] = useState<FileMetadata[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [providers, setProviders] = useState<any[]>([]);
-  const [availableAccounts, setAvailableAccounts] = useState<WalletAccount[]>([]);
-
-  const accountsRef = useRef(accounts);
-  const activeAccountRef = useRef(activeAccount);
 
   const initializeApi = async (networkKey: string) => {
     const network = NETWORKS[networkKey];
@@ -157,93 +127,52 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const getWalletExtensions = useCallback(async () => {
+  const connectAccount = useCallback(async (account: any) => {
     try {
-      console.log('Injected extensions:', window.injectedWeb3);
-
-      const injectedExtensions = await web3Enable('Vaulted');
-      if (!injectedExtensions.length) {
-        throw new Error('No extension found');
+      let extension;
+      if (account.meta.source === 'nightly') {
+        const nightlyAdapter = await getAdapter();
+        extension = {
+          signer: nightlyAdapter.signer
+        };
+      } else {
+        extension = await web3FromAddress(account.address);
       }
 
-      const extensionsWithMetadata = await Promise.all(
-        injectedExtensions.map(async (extension) => {
-          const metadata = await extension.metadata?.get() || {} as any;
-          return {
-            extension,
-            metadata: {
-              icon: metadata.icon,
-              name: metadata.name || extension.name
-            }
-          };
-        })
-      );
+      if (extension) {
+        setActiveAccount(account.address);
+        const signerInstance = new Web3Signer();
+        await signerInstance.connect();
+        setWeb3Signer(signerInstance);
 
-      setExtensions(extensionsWithMetadata);
-    } catch (error) {
-      console.error('Failed to get wallet extensions:', error);
-      throw error;
-    }
-  }, []);
+        if (!api) {
+          await initializeApi('cereMainnet');
+        }
 
-  const connectWithExtension = useCallback(async (extension: InjectedExtension) => {
-    try {
-      const allAccounts = await web3Accounts();
-      const formattedAccounts: WalletAccount[] = allAccounts.map(account => ({
-        address: account.address,
-        name: account.meta.name || undefined,
-        source: account.meta.source || 'unknown',
-        signer: account.meta.source
-      }));
-  
-      setAccounts(formattedAccounts);
-      accountsRef.current = formattedAccounts;
-  
-      const network = 'cereMainnet';
-      const accountToUse = formattedAccounts[0]?.address;
-  
-      if (accountToUse) {
-        setActiveAccount(accountToUse);
-        activeAccountRef.current = accountToUse;
-
-        if (extension.signer) {
-          const signerInstance = new Web3Signer();
-          await signerInstance.connect();
-          setWeb3Signer(signerInstance);
-
-          try {
-            const client = await initializeDdcClient(signerInstance);
-            setDdcClient(client);
-          } catch (error) {
-            console.error('DDC client initialization failed:', error);
-          }
+        try {
+          const client = await initializeDdcClient(signerInstance);
+          setDdcClient(client);
+        } catch (error) {
+          console.error('DDC client initialization failed:', error);
+          toast({
+            title: 'Failed to initialize DDC client',
+            description: 'An error occurred while initializing the DDC client',
+            variant: 'destructive',
+          });
         }
       }
-  
-      if (!api) {
-        await initializeApi('cereMainnet');
-      }
-  
-      return {
-        address: accountToUse || '',
-        network: network
-      };
     } catch (error) {
-      console.error('Failed to connect with extension:', error);
+      console.error('Failed to connect account:', error);
+      toast({
+        title: 'Failed to connect account',
+        description: 'An error occurred while connecting to the account',
+        variant: 'destructive',
+      });
       throw error;
     }
-  }, [api, initializeDdcClient]);
+  }, [initializeDdcClient]);
 
-  const connectWallet = useCallback(async () => {
-    // If only one extension, use it directly
-    if (extensions.length === 1) {
-      return connectWithExtension(extensions[0].extension as any);
-    }
-    // Otherwise, let the UI handle extension selection
-    throw new Error('Please select a wallet extension');
-  }, [getWalletExtensions, connectWithExtension]);
-
-  const disconnectWallet = useCallback(async () => {
+  const disconnectAccount = useCallback(async () => {
     if (api) {
       await api.disconnect();
     }
@@ -251,8 +180,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await ddcClient.disconnect();
     }
     setActiveAccount(null);
-    setAccounts([]);
-    setExtensions([]);
     setWeb3Signer(null);
     setDdcClient(null);
   }, [api, ddcClient]);
@@ -264,7 +191,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await initializeApi(networkKey);
   }, [api]);
 
-  const getBalance = useCallback(async (address: string): Promise<string> => {
+  const getAccountBalance = useCallback(async (address: string): Promise<string> => {
     if (!api) throw new Error('API not initialized');
     
     try {
@@ -362,7 +289,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       await ddcClient.store(BigInt(bucketId), rootDagNode, { name: 'fs' });
-      setMyFiles(prev => [...prev, fileMetadata]);
+      setFiles(prev => [...prev, fileMetadata]);
 
       return fileMetadata;
     } catch (err) {
@@ -496,115 +423,25 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }*/
   }, [ddcClient]);
 
-  const getWalletProviders = useCallback(async () => {
-    try {
-      console.log(window.injectedWeb3);
-      // First enable web3
-      await web3Enable('Vaulted');
-      
-      // Then get accounts
-      const allAccounts = await web3Accounts();
-      const accountsBySource = allAccounts.reduce((acc, account) => {
-        const source = account.meta.source;
-        if (!acc[source]) {
-          acc[source] = {
-            accounts: [],
-            name: source,
-            icon: undefined
-          };
-        }
-        acc[source].accounts.push(account);
-        return acc;
-      }, {} as any);
-
-      const providers = Object.entries(accountsBySource).map(([source, data]) => ({
-        source,
-        metadata: {
-          // @ts-ignore 
-          name: data.name,
-          // @ts-ignore
-          icon: data.icon
-        },
-        // @ts-ignore
-        accounts: data.accounts
-      }));
-
-      setProviders(providers);
-    } catch (error) {
-      console.error('Failed to get wallet providers:', error);
-      throw error;
-    }
-  }, []);
-
-  const getWalletAccounts = useCallback(async (source: string) => {
-    try {
-      const accounts = await web3Accounts({ extensions: [source] });
-      const formattedAccounts = accounts.map(acc => ({
-        address: acc.address,
-        name: acc.meta.name,
-        source: acc.meta.source
-      }));
-      setAvailableAccounts(formattedAccounts);
-      return formattedAccounts;
-    } catch (error) {
-      console.error('Failed to get accounts:', error);
-      throw error;
-    }
-  }, []);
-
-  const connectWithAccount = useCallback(async (account: any) => {
-    try {
-      const extension = await web3FromAddress(account.address);
-      if (extension) {
-        setActiveAccount(account.address);
-        // Initialize signer and client here
-        const signerInstance = new Web3Signer();
-        await signerInstance.connect();
-        setWeb3Signer(signerInstance);
-
-        try {
-          const client = await initializeDdcClient(signerInstance);
-          setDdcClient(client);
-        } catch (error) {
-          console.error('DDC client initialization failed:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to connect account:', error);
-      throw error;
-    }
-  }, [initializeDdcClient]);
-
   return (
     <WalletContext.Provider
       value={{
-        connectWallet,
-        disconnectWallet,
-        getBalance,
+        connectAccount,
+        disconnectAccount,
+        getAccountBalance,
         switchNetwork,
         signMessage,
-        api,
         activeAccount,
         activeNetwork,
-        accounts,
-        web3Signer,
-        ddcClient,
         uploadFile,
         shareFile,
         downloadFile,
         readFile,
         readSharedFile,
         createPrivateBucket,
-        myFiles,
+        files,
         isLoading,
         error,
-        extensions,
-        getWalletExtensions,
-        connectWithExtension,
-        providers,
-        getWalletProviders,
-        getWalletAccounts,
-        connectWithAccount,
       }}
     >
       {children}

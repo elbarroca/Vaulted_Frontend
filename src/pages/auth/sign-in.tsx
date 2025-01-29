@@ -1,25 +1,15 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Icons } from "@/components/ui/icons"
 import { motion } from "framer-motion"
-import { cn } from "@/lib/utils"
-import { useWallet } from "@/contexts/WalletProvider"
 import { WalletDialog } from "@/components/WalletDialog"
 
 export function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
-  const navigate = useNavigate()
-  const { activeAccount, connectWithAccount, getWalletProviders, providers } = useWallet()
   const [walletDialogOpen, setWalletDialogOpen] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<string>()
-
-  useEffect(() => {
-    if (activeAccount) {
-      navigate("/dashboard")
-    }
-  }, [activeAccount, navigate])
+  const navigate = useNavigate()
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -30,43 +20,6 @@ export function SignInPage() {
       setIsLoading(false)
       navigate("/dashboard")
     }, 1000)
-  }
-
-  const handleWalletConnect = async () => {
-    try {
-      await getWalletProviders()
-      if (providers.length === 1) {
-        const provider = providers[0]
-        if (provider.accounts.length === 1) {
-          await connectWithAccount(provider.accounts[0])
-          navigate("/dashboard")
-        } else {
-          setSelectedProvider(provider.source)
-          setWalletDialogOpen(true)
-        }
-      } else {
-        setWalletDialogOpen(true)
-      }
-    } catch (error) {
-      console.error("Failed to get wallet providers:", error)
-    }
-  }
-
-  const handleSelectProvider = (source: string) => {
-    setSelectedProvider(source)
-  }
-
-  const handleSelectAccount = async (account: any) => {
-    try {
-      setIsLoading(true)
-      await connectWithAccount(account)
-      setWalletDialogOpen(false)
-      navigate("/dashboard")
-    } catch (error) {
-      console.error("Failed to connect account:", error)
-    } finally {
-      setIsLoading(false)
-    }
   }
 
   return (
@@ -168,30 +121,13 @@ export function SignInPage() {
                 Google
               </Button>
             </div>
-            <Button 
-              variant="outline" 
-              disabled={isLoading} 
-              onClick={handleWalletConnect}
-              className={cn(
-                "w-full gap-2 relative group",
-                "bg-background hover:bg-accent",
-                "border-input hover:border-accent", 
-                "h-12"
-              )}
-            >
-              <span role="img" aria-label="wallet" className="text-xl relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400">
-                👤
-              </span>
-              <span className="font-medium relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 dark:from-blue-400 dark:via-indigo-400 dark:to-blue-400">
-                {isLoading ? "Connecting..." : "Connect Wallet"}
-              </span>
-              {!isLoading && (
-                <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                  <Icons.arrowRight className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-                </div>
-              )}
-              {isLoading && <Icons.spinner className="absolute right-4 h-4 w-4 animate-spin" />}
-            </Button>
+            
+            <WalletDialog
+              open={walletDialogOpen}
+              onOpenChange={setWalletDialogOpen}
+              isLoading={isLoading}
+            />
+
             <p className="px-8 text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Button 
@@ -205,15 +141,6 @@ export function SignInPage() {
           </div>
         </motion.div>
       </div>
-      <WalletDialog
-        open={walletDialogOpen}
-        onOpenChange={setWalletDialogOpen}
-        providers={providers}
-        selectedProvider={selectedProvider}
-        onSelectProvider={handleSelectProvider}
-        onSelectAccount={handleSelectAccount}
-        isLoading={isLoading}
-      />
     </>
   )
 } 
