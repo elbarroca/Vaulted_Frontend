@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Icons } from "@/components/ui/icons"
@@ -19,6 +19,9 @@ import { CreateFolderModal } from "@/components/ui/create-folder-modal"
 import { ShareFileModal } from "@/components/ui/share-file-modal"
 import { DeleteFileModal } from "@/components/ui/delete-file-modal"
 import { EnhancedShareModal } from "@/components/ui/enhanced-share-modal"
+import { useWallet } from "@/contexts/WalletProvider"
+import { BucketCreationDialog } from "@/components/BucketCreationDialog"
+import { toast } from "@/hooks/use-toast"
 
 type BrowserFile = globalThis.File
 type CustomFile = {
@@ -38,6 +41,7 @@ type CustomFile = {
   location: string
   owner: string
   permissions: string[]
+  cid?: string
 }
 
 interface Folder {
@@ -426,6 +430,8 @@ export function DashboardPage() {
   const [showDeleteModal, setShowDeleteModal] = React.useState(false)
   const [fileToDelete, setFileToDelete] = React.useState<CustomFile | null>(null)
 
+  const { downloadFile: walletDownloadFile, signMessage } = useWallet();
+
   const handleFileUpload = async (uploadedFiles: FileList | BrowserFile[]) => {
     setIsUploading(true)
     try {
@@ -540,20 +546,96 @@ export function DashboardPage() {
     }
   }
 
-  const handleDownloadFile = (fileId: string) => {
-    const file = files.find(f => f.id === fileId)
-    if (!file?.url) {
-      console.error('Download URL not available')
-      return
+  const handleDownloadFile = async (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (!file) {
+      toast({
+        title: "Error",
+        description: "File not found",
+        variant: "destructive",
+      });
+      return;
     }
 
-    const link = document.createElement('a')
-    link.href = file.url
-    link.download = file.name
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    try {
+      // Sign the download request
+      const message = `Download request for file: ${file.id}`;
+      const signature = await signMessage(message);
+      
+      // Generate a temporary access token (this is just an example)
+      const accessToken = `temp-token-${Date.now()}`;
+
+      // Use the wallet provider's download method
+      await walletDownloadFile(
+        {
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          cid: file.cid || '', // Make sure your file metadata includes the CID
+          uploadedBy: file.owner,
+          uploadedAt: new Date(file.createdAt),
+          authorizedUsers: file.permissions,
+          mimeType: file.type,
+          description: '',
+          folderId: file.folderId
+        },
+        accessToken,
+        signature
+      );
+
+      toast({
+        title: "Success",
+        description: "File download started",
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading your file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const [showBucketDialog, setShowBucketDialog] = useState(false);
+  const [isBucketLoading, setIsBucketLoading] = useState(false);
+  const { createPrivateBucket, activeAccount } = useWallet();
+
+  useEffect(() => {
+    const checkBucket = async () => {
+      if (activeAccount) {
+        const bucketId = localStorage.getItem('userBucketId');
+        if (!bucketId) {
+          setShowBucketDialog(true);
+        }
+      }
+    };
+
+    checkBucket();
+  }, [activeAccount]);
+
+  const handleCreateBucket = async (amount: bigint) => {
+    try {
+      setIsBucketLoading(true);
+      const bucketId = await createPrivateBucket(amount);
+      localStorage.setItem('userBucketId', bucketId.toString());
+      setShowBucketDialog(false);
+      toast({
+        title: "Bucket created successfully",
+        description: "Your private bucket is ready to use",
+      });
+    } catch (error) {
+      console.error('Failed to create bucket:', error);
+      toast({
+        title: "Failed to create bucket",
+        description: "An error occurred while creating your bucket",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBucketLoading(false);
+    }
+  };
 
   return (
     <div className="relative min-h-screen w-full">
@@ -889,6 +971,13 @@ export function DashboardPage() {
           onDelete={handleConfirmDelete}
         />
       )}
+
+      <BucketCreationDialog
+        open={showBucketDialog}
+        onOpenChange={setShowBucketDialog}
+        onCreateBucket={handleCreateBucket}
+        isLoading={isBucketLoading}
+      />
     </div>
   )
 } 

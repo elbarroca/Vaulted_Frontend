@@ -51,7 +51,7 @@ export interface WalletContextInterface {
   signMessage: (message: string) => Promise<string>;
   activeAccount: string | null;
   activeNetwork: string | null;
-  createPrivateBucket: () => Promise<BucketId>;
+  createPrivateBucket: (amount?: bigint) => Promise<BucketId>;
   uploadFile: (file: File) => Promise<FileMetadata>;
   shareFile: (fileMetadata: FileMetadata) => Promise<string>;
   downloadFile: (fileMetadata: FileMetadata, accessToken: string, signature: string) => Promise<void>;
@@ -62,6 +62,20 @@ export interface WalletContextInterface {
   error: Error | null;
 }
 
+const createEmptyFileMetadata = (): FileMetadata => ({
+  id: '',
+  name: '',
+  size: 0,
+  type: '',
+  uploadedBy: '',
+  uploadedAt: new Date(),
+  authorizedUsers: [],
+  cid: '',
+  mimeType: '',
+  description: '',
+  folderId: null
+});
+
 const defaultContext: WalletContextInterface = {
   connectAccount: async () => {},
   disconnectAccount: async () => {},
@@ -70,7 +84,7 @@ const defaultContext: WalletContextInterface = {
   signMessage: async () => '',
   activeAccount: null,
   activeNetwork: null,
-  uploadFile: async () => ({ id: '', name: '', size: 0, uploadedBy: '', uploadedAt: new Date(), authorizedUsers: [], cid: '', mimeType: '', description: '', folderId: null }),
+  uploadFile: async () => createEmptyFileMetadata(),
   shareFile: async () => '',
   downloadFile: async () => {},
   readFile: async () => undefined,
@@ -215,13 +229,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [activeAccount, web3Signer]);
 
   // Storage Methods
-  const createPrivateBucket = async () => {
+  const createPrivateBucket = async (amount: bigint = BigInt('5') * CERE) => {
     if (!ddcClient) throw new Error('DDC client not initialized');
     setIsLoading(true);
     try {
       const deposit = await ddcClient.getDeposit();
       if (deposit === BigInt('0')) {
-        await ddcClient.depositBalance(BigInt('5') * CERE);
+        await ddcClient.depositBalance(amount);
       }
 
       const bucketId = await ddcClient.createBucket('0x0059f5ada35eee46802d80750d5ca4a490640511', { 
@@ -237,41 +251,45 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File): Promise<FileMetadata> => {
     if (!ddcClient) throw new Error('DDC client not initialized');
+    if (!activeAccount) throw new Error('No active account');
+    
     setIsLoading(true);
+    setError(null);
 
     try {
-      let bucketId = localStorage.getItem('userBucketId');
-      if (!bucketId) {
-        const privateBucket = await createPrivateBucket();
-        bucketId = privateBucket.toString();
-        localStorage.setItem('userBucketId', bucketId);
-      }
+      const bucketId = localStorage.getItem('userBucketId');
+      if (!bucketId) throw new Error('No bucket found');
 
+      // Convert File to buffer
       const fileBuffer = await file.arrayBuffer();
       const data = new Uint8Array(fileBuffer);
       const ddcFile = new DdcFile(data, { size: data.length });
-      const bucketIdBigInt = BigInt(bucketId);
-      const uploadedFileUri = await ddcClient.store(bucketIdBigInt, ddcFile);
 
+      // Upload to DDC
+      const uploadedFileUri = await ddcClient.store(BigInt(bucketId), ddcFile);
+
+      // Create file metadata
       const fileMetadata: FileMetadata = {
         id: uuidv4(),
         name: file.name,
         size: file.size,
-        uploadedBy: activeAccount || '',
+        type: file.type,
+        uploadedBy: activeAccount,
         uploadedAt: new Date(),
-        authorizedUsers: [activeAccount || ''],
+        authorizedUsers: [activeAccount],
         cid: uploadedFileUri.cid,
         mimeType: file.type || 'application/octet-stream',
         description: '',
-        folderId: null
+        folderId: null,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
       };
 
-      // Index the file
+      // Index the file in the filesystem
       const filePathInDeveloperConsole = `uploads/${fileMetadata.name}/`;
       const rootDagNode = await ddcClient.read(
-        new DagNodeUri(BigInt(bucketId), 'fs'), 
+        new DagNodeUri(BigInt(bucketId), 'fs'),
         { cacheControl: 'no-cache' }
       ).catch((res) => {
         if (res.message === 'Cannot resolve CNS name: "fs"') {
@@ -289,6 +307,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       await ddcClient.store(BigInt(bucketId), rootDagNode, { name: 'fs' });
+      
+      // Update local state
       setFiles(prev => [...prev, fileMetadata]);
 
       return fileMetadata;

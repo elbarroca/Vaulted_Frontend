@@ -7,6 +7,7 @@ import { useDropzone } from "react-dropzone"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useTheme } from "@/components/theme-provider"
+import { useWallet } from "@/contexts/WalletProvider"
 
 const mainVariant = {
   initial: { x: 0, y: 0 },
@@ -30,20 +31,46 @@ export function FileUploadModal({ open, onClose, onUpload, isUploading = false }
   const [uploadProgress, setUploadProgress] = useState(0)
   const { theme } = useTheme()
   const isDark = theme === "dark"
+  const { uploadFile } = useWallet()
 
   const handleFileChange = async (newFiles: File[]) => {
-    setFiles((prevFiles) => [...prevFiles, ...newFiles])
-    
-    // Simulate upload progress
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 200))
-      setUploadProgress(i)
+    try {
+      setFiles((prevFiles) => [...prevFiles, ...newFiles])
+      
+      // Upload each file using the wallet provider
+      for (const file of newFiles) {
+        setUploadProgress(0)
+        
+        // Upload progress simulation
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => Math.min(prev + 10, 90))
+        }, 200)
+
+        try {
+          const fileMetadata = await uploadFile(file)
+          console.log('File uploaded successfully:', fileMetadata)
+          
+          // Complete the progress bar
+          setUploadProgress(100)
+          clearInterval(progressInterval)
+          
+          // Notify parent component
+          onUpload([file])
+        } catch (error) {
+          console.error('Error uploading file:', error)
+          clearInterval(progressInterval)
+          // You might want to show an error toast here
+        }
+      }
+      
+      // Clear the files and close the modal
+      setFiles([])
+      setUploadProgress(0)
+      onClose()
+    } catch (error) {
+      console.error('Error handling files:', error)
+      setUploadProgress(0)
     }
-    
-    onUpload(newFiles)
-    setFiles([])
-    setUploadProgress(0)
-    onClose()
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -222,7 +249,7 @@ export function FileUploadModal({ open, onClose, onUpload, isUploading = false }
                         className="text-destructive hover:text-destructive/90"
                         onClick={() => setFiles(files.filter((_, i) => i !== idx))}
                       >
-                        <Icons.x className="h-4 w-4" />
+                        <Icons.close className="h-4 w-4" />
                       </Button>
                     </motion.div>
                   ))}

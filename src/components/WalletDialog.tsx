@@ -8,10 +8,10 @@ import { useNavigate } from "react-router-dom"
 import { web3Enable, web3Accounts } from '@polkadot/extension-dapp'
 import { getAdapter } from "@/misc/nightly"
 import { toast } from "@/hooks/use-toast"
-
+import polkadotIcon from "@/assets/polkadot_icon.svg?react"
 interface WalletProvider {
   name: string;
-  icon?: string;
+  icon?: string | React.FC<React.SVGProps<SVGSVGElement>>;
   accounts: InjectedAccountWithMeta[];
   source: string;
 }
@@ -39,22 +39,18 @@ export function WalletDialog({
     try {
       setIsLoading(true)
       
-    // Initialize Nightly Connect
-    const nightlyAdapter = await getAdapter();
-    let nightlyAccounts: InjectedAccountWithMeta[] = [];
-      // Initialize PolkadotJS extension
+      const nightlyAdapter = await getAdapter();
+      let nightlyAccounts: InjectedAccountWithMeta[] = [];
       await web3Enable('Vaulted');
       const accounts = await web3Accounts();
       
       const polkadotProvider: WalletProvider = {
         name: 'PolkadotJS',
-        icon: '/polkadot-icon.png', // Add your icon path
+        icon: polkadotIcon,
         accounts,
         source: 'polkadot'
       };
 
-
-      
       if (await nightlyAdapter.canEagerConnect()) {
         try {
           await nightlyAdapter.connect();
@@ -190,11 +186,15 @@ export function WalletDialog({
                   disabled={loading}
                 >
                   {provider.icon ? (
-                    <img 
-                      src={provider.icon} 
-                      alt={provider.name} 
-                      className="w-6 h-6"
-                    />
+                    typeof provider.icon === 'string' ? (
+                      <img 
+                        src={provider.icon} 
+                        alt={provider.name} 
+                        className="w-6 h-6"
+                      />
+                    ) : (
+                      <provider.icon className="w-6 h-6" />
+                    )
                   ) : (
                     <Icons.wallet className="w-6 h-6" />
                   )}
